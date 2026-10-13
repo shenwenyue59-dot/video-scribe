@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 let inputMode = 'links', selected = null, current = null, view = 'plain', busy = false;
 let list = [], toastTimer, lastRenderKey = '', initialized = false;
 let previousStatuses = new Map();
+const exportSelection = new Set();
 function toast(text) { $('toast').textContent = text; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2800); }
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -53,16 +54,28 @@ $('task-form').onsubmit = async e => {
 function element(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 const statuses = {queued:'排队中',running:'处理中',done:'已完成',error:'未完成',cancelled:'已取消'};
 function renderJobs() {
-  const renderKey = JSON.stringify([list, selected]);
+  const completedIds = list.filter(j => j.status === 'done').map(j => j.id);
+  for (const id of [...exportSelection]) if (!completedIds.includes(id)) exportSelection.delete(id);
+  const renderKey = JSON.stringify([list, selected, [...exportSelection].sort()]);
   if (renderKey === lastRenderKey) return;
   lastRenderKey = renderKey;
   $('job-count').textContent = list.length; $('empty').hidden = list.length > 0;
   const pending = list.filter(j => ['queued','running'].includes(j.status)).length;
   $('queue-status').textContent = pending ? `${pending} 个任务待完成 · 按顺序在本机处理` : '你的内容会保存在这台电脑上';
-  $('export-all').disabled = !list.some(j => j.status === 'done');
+  $('export-all').disabled = !completedIds.length;
+  $('select-all').disabled = !completedIds.length;
+  $('select-all').textContent = completedIds.length && completedIds.every(id => exportSelection.has(id)) ? '取消全选' : '全选已完成';
+  $('export-selected').disabled = !exportSelection.size;
+  $('export-selected').textContent = `导出已选（${exportSelection.size}）↓`;
   $('job-list').replaceChildren();
   for (const job of list) {
     const row = element('div', `job ${job.status}${selected === job.id ? ' selected' : ''}`);
+    if (job.status === 'done') {
+      const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'export-check'; check.checked = exportSelection.has(job.id);
+      check.setAttribute('aria-label', `选择导出：${job.title}`);
+      check.onchange = () => { if (check.checked) exportSelection.add(job.id); else exportSelection.delete(job.id); lastRenderKey=''; renderJobs(); };
+      row.append(check);
+    } else row.append(element('span','export-check-placeholder'));
     const icon = element('span','job-icon',job.status === 'done' ? '✓' : job.status === 'error' ? '!' : '≋');
     const main = element(job.status === 'done' ? 'button' : 'div','job-main');
     const oldAuthError = job.status === 'error' && /fresh cookies|cookies are needed/i.test(job.message);
@@ -110,6 +123,8 @@ $('plain-view').onclick=()=>{view='plain';renderTranscript();}; $('timed-view').
 $('copy').onclick=async()=>{if(!current)return;try{await navigator.clipboard.writeText(current.text);toast('逐字稿已复制');}catch{toast('无法访问剪贴板，请选择原文复制或导出 TXT。');}};
 function download(url){const a=document.createElement('a');a.href=url;a.download='';document.body.append(a);a.click();a.remove();}
 $('txt').onclick=()=>current&&download(`/api/jobs/${current.id}/export/txt`); $('srt').onclick=()=>current&&download(`/api/jobs/${current.id}/export/srt`); $('csv').onclick=()=>current&&download(`/api/jobs/${current.id}/export/csv`);
+$('select-all').onclick=()=>{const done=list.filter(j=>j.status==='done').map(j=>j.id);if(done.every(id=>exportSelection.has(id)))done.forEach(id=>exportSelection.delete(id));else done.forEach(id=>exportSelection.add(id));lastRenderKey='';renderJobs();};
+$('export-selected').onclick=()=>{if(exportSelection.size)download(`/api/export.zip?ids=${[...exportSelection].join(',')}`);};
 $('export-all').onclick=()=>download('/api/export.zip');
 let polling=false;
 async function refresh(){

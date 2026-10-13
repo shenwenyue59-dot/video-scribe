@@ -319,9 +319,18 @@ def export(identifier: str, extension: str):
 
 
 @app.get('/api/export.zip')
-def export_all():
+def export_all(ids: str | None = None):
     with LOCK:
-        completed = deepcopy([j for j in JOBS.values() if j['status'] == 'done'])
+        if ids:
+            requested = list(dict.fromkeys(item for item in ids.split(',') if item))
+            if len(requested) > 100 or any(not re.fullmatch(r'[a-f0-9]{32}', item) for item in requested):
+                raise HTTPException(400, '导出选择无效')
+            completed = deepcopy([JOBS[item] for item in requested
+                                  if item in JOBS and JOBS[item]['status'] == 'done'])
+            if len(completed) != len(requested):
+                raise HTTPException(400, '所选任务包含不存在或尚未完成的内容')
+        else:
+            completed = deepcopy([j for j in JOBS.values() if j['status'] == 'done'])
     if not completed:
         raise HTTPException(400, '还没有已完成的逐字稿')
     output = io.BytesIO()
@@ -332,7 +341,8 @@ def export_all():
             archive.writestr(base + '.srt', to_srt(job['segments']).encode('utf-8-sig'))
             archive.writestr(base + '.csv', to_csv(job['segments'], job['title'],
                                                    job.get('url', '')).encode('utf-8-sig'))
-    return Response(output.getvalue(), media_type='application/zip', headers={'Content-Disposition': 'attachment; filename="transcripts.zip"'})
+    archive_name = 'selected-transcripts.zip' if ids else 'transcripts.zip'
+    return Response(output.getvalue(), media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{archive_name}"'})
 
 
 app.mount('/', StaticFiles(directory=ROOT / 'static', html=True), name='static')

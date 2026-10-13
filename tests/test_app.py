@@ -68,6 +68,11 @@ class ApiTests(unittest.TestCase):
         self.assertIn('测试字幕,https://youtu.be/abc,1,00:00:00.000,00:00:01.500,你好', csv_text)
         archive = zipfile.ZipFile(io.BytesIO(self.client.get('/api/export.zip').content))
         self.assertEqual(len(archive.namelist()), 3)
+        selected = self.client.get(f'/api/export.zip?ids={ids[1]}')
+        self.assertEqual(selected.status_code, 200)
+        self.assertIn('selected-transcripts.zip', selected.headers['content-disposition'])
+        self.assertEqual(len(zipfile.ZipFile(io.BytesIO(selected.content)).namelist()), 3)
+        self.assertEqual(self.client.get('/api/export.zip?ids=bad').status_code, 400)
         self.assertEqual(self.client.delete(f'/api/jobs/{ids[1]}').status_code, 200)
         self.assertEqual(self.client.get(f'/api/jobs/{ids[1]}').status_code, 404)
 
