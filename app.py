@@ -22,6 +22,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from opencc import OpenCC
 from transcript import extract_urls, to_csv, to_srt
 
 ROOT = Path(__file__).resolve().parent
@@ -34,9 +35,30 @@ PROCESSES = {}
 TERMINAL = {'done', 'error', 'cancelled'}
 PUBLIC_TOKEN = os.environ.get('SCRIBE_PUBLIC_TOKEN', '')
 ALLOWED = ('douyin.com', 'xiaohongshu.com', 'xhslink.com', 'bilibili.com', 'b23.tv', 'youtube.com', 'youtu.be', 'tiktok.com', 'vimeo.com')
+SIMPLIFIER = OpenCC('t2s')
+
+
+def simplify_job(job):
+    changed = False
+    for key in ('title', 'text'):
+        value = job.get(key)
+        if isinstance(value, str):
+            converted = SIMPLIFIER.convert(value)
+            if converted != value:
+                job[key] = converted
+                changed = True
+    for segment in job.get('segments') or []:
+        value = segment.get('text')
+        if isinstance(value, str):
+            converted = SIMPLIFIER.convert(value)
+            if converted != value:
+                segment['text'] = converted
+                changed = True
+    return changed
 
 
 def save(job):
+    simplify_job(job)
     path = DATA / (job['id'] + '.json')
     temp = path.with_suffix('.tmp')
     temp.write_text(json.dumps(job, ensure_ascii=False), encoding='utf-8')
@@ -46,8 +68,11 @@ def save(job):
 for path in DATA.glob('*.json'):
     try:
         item = json.loads(path.read_text(encoding='utf-8'))
+        changed = simplify_job(item)
         if item['status'] not in TERMINAL:
             item.update(status='error', message='上次运行已中断，请重新提交。')
+            changed = True
+        if changed:
             save(item)
         JOBS[item['id']] = item
     except (ValueError, KeyError):
@@ -321,6 +346,73 @@ def filename(job):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', job['title'])[:90].strip(' .') or '逐字稿'
 
 
+def selected_jobs(ids=None):
+    with LOCK:
+        if ids:
+            requested = list(dict.fromkeys(item for item in ids.split(',') if item))
+            if len(requested) > 100 or any(not re.fullmatch(r'[a-f0-9]{32}', item) for item in requested):
+                raise HTTPException(400, '导出选择无效')
+            completed = deepcopy([JOBS[item] for item in requested
+                                  if item in JOBS and JOBS[item]['status'] == 'done'])
+            if len(completed) != len(requested):
+                raise HTTPException(400, '所选任务包含不存在或尚未完成的内容')
+        else:
+            completed = deepcopy([j for j in JOBS.values() if j['status'] == 'done'])
+    if not completed:
+        raise HTTPException(400, '还没有已完成的逐字稿')
+    for job in completed:
+        simplify_job(job)
+    return completed
+
+
+def workbook_bytes(jobs):
+    import xlsxwriter
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    title_format = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#294F3C'})
+    label_format = workbook.add_format({'bold': True, 'bg_color': '#EEF3E7', 'font_color': '#557046', 'border': 1})
+    header_format = workbook.add_format({'bold': True, 'bg_color': '#315A42', 'font_color': 'white', 'border': 1, 'align': 'center'})
+    cell_format = workbook.add_format({'text_wrap': True, 'valign': 'top', 'border': 1, 'border_color': '#DDE5D8'})
+    time_format = workbook.add_format({'valign': 'top', 'border': 1, 'border_color': '#DDE5D8', 'align': 'center'})
+    used = set()
+    for number, job in enumerate(jobs, 1):
+        base = re.sub(r'[\[\]:*?/\\]', '_', job['title']).strip(" '")[:31] or f'逐字稿{number}'
+        sheet_name = base
+        suffix = 2
+        while sheet_name.lower() in used:
+            marker = f'-{suffix}'
+            sheet_name = base[:31-len(marker)] + marker
+            suffix += 1
+        used.add(sheet_name.lower())
+        sheet = workbook.add_worksheet(sheet_name)
+        sheet.hide_gridlines(2)
+        sheet.set_column('A:A', 9)
+        sheet.set_column('B:C', 15)
+        sheet.set_column('D:D', 80)
+        sheet.merge_range('A1:D1', job['title'], title_format)
+        metadata = [('视频标题', job['title']), ('视频链接', job.get('url', '')), ('内容来源', job.get('source', ''))]
+        for row, (label, value) in enumerate(metadata, 1):
+            sheet.write(row, 0, label, label_format)
+            if label == '视频链接' and value:
+                sheet.write_url(row, 1, value, cell_format, value)
+            else:
+                sheet.merge_range(row, 1, row, 3, value, cell_format)
+        header_row = 5
+        for column, heading in enumerate(('序号', '开始时间', '结束时间', '逐字内容')):
+            sheet.write(header_row, column, heading, header_format)
+        for offset, segment in enumerate(job['segments'], 1):
+            row = header_row + offset
+            sheet.write_number(row, 0, offset, time_format)
+            sheet.write(row, 1, f"{segment['start']:.3f}", time_format)
+            sheet.write(row, 2, f"{segment['end']:.3f}", time_format)
+            sheet.write(row, 3, segment['text'], cell_format)
+        last_row = max(header_row + 1, header_row + len(job['segments']))
+        sheet.autofilter(header_row, 0, last_row, 3)
+        sheet.freeze_panes(header_row + 1, 1)
+    workbook.close()
+    return output.getvalue()
+
+
 @app.get('/api/jobs/{identifier}/export/{extension}')
 def export(identifier: str, extension: str):
     job = detail(identifier)
@@ -337,19 +429,7 @@ def export(identifier: str, extension: str):
 
 @app.get('/api/export.zip')
 def export_all(ids: str | None = None):
-    with LOCK:
-        if ids:
-            requested = list(dict.fromkeys(item for item in ids.split(',') if item))
-            if len(requested) > 100 or any(not re.fullmatch(r'[a-f0-9]{32}', item) for item in requested):
-                raise HTTPException(400, '导出选择无效')
-            completed = deepcopy([JOBS[item] for item in requested
-                                  if item in JOBS and JOBS[item]['status'] == 'done'])
-            if len(completed) != len(requested):
-                raise HTTPException(400, '所选任务包含不存在或尚未完成的内容')
-        else:
-            completed = deepcopy([j for j in JOBS.values() if j['status'] == 'done'])
-    if not completed:
-        raise HTTPException(400, '还没有已完成的逐字稿')
+    completed = selected_jobs(ids)
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
         for job in completed:
@@ -360,6 +440,15 @@ def export_all(ids: str | None = None):
                                                    job.get('url', '')).encode('utf-8-sig'))
     archive_name = 'selected-transcripts.zip' if ids else 'transcripts.zip'
     return Response(output.getvalue(), media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{archive_name}"'})
+
+
+@app.get('/api/export.xlsx')
+def export_workbook(ids: str | None = None):
+    completed = selected_jobs(ids)
+    name = 'selected-transcripts.xlsx' if ids else 'all-transcripts.xlsx'
+    return Response(workbook_bytes(completed),
+                    media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': f'attachment; filename="{name}"'})
 
 
 app.mount('/', StaticFiles(directory=ROOT / 'static', html=True), name='static')

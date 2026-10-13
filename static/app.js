@@ -66,7 +66,7 @@ function renderJobs() {
   $('select-all').disabled = !completedIds.length;
   $('select-all').textContent = completedIds.length && completedIds.every(id => exportSelection.has(id)) ? '取消全选' : '全选已完成';
   $('export-selected').disabled = !exportSelection.size;
-  $('export-selected').textContent = `导出已选（${exportSelection.size}）↓`;
+  $('export-selected').textContent = `导出已选表格（${exportSelection.size}）↓`;
   $('job-list').replaceChildren();
   for (const job of list) {
     const row = element('div', `job ${job.status}${selected === job.id ? ' selected' : ''}`);
@@ -124,8 +124,8 @@ $('copy').onclick=async()=>{if(!current)return;try{await navigator.clipboard.wri
 function download(url){const a=document.createElement('a');a.href=url;a.download='';document.body.append(a);a.click();a.remove();}
 $('txt').onclick=()=>current&&download(`/api/jobs/${current.id}/export/txt`); $('srt').onclick=()=>current&&download(`/api/jobs/${current.id}/export/srt`); $('csv').onclick=()=>current&&download(`/api/jobs/${current.id}/export/csv`);
 $('select-all').onclick=()=>{const done=list.filter(j=>j.status==='done').map(j=>j.id);if(done.every(id=>exportSelection.has(id)))done.forEach(id=>exportSelection.delete(id));else done.forEach(id=>exportSelection.add(id));lastRenderKey='';renderJobs();};
-$('export-selected').onclick=()=>{if(exportSelection.size)download(`/api/export.zip?ids=${[...exportSelection].join(',')}`);};
-$('export-all').onclick=()=>download('/api/export.zip');
+$('export-selected').onclick=()=>{if(exportSelection.size)download(`/api/export.xlsx?ids=${[...exportSelection].join(',')}`);};
+$('export-all').onclick=()=>download('/api/export.xlsx');
 let polling=false;
 async function refresh(){
   if(polling)return; polling=true;
