@@ -21,6 +21,12 @@ class TranscriptTests(unittest.TestCase):
         self.assertEqual(correct_chinese_text('火锅机加盟品牌', title), '火锅鸡加盟品牌')
         self.assertEqual(correct_chinese_text('你没惊艳总部派人', title), '你没经验总部派人')
 
+    def test_transcript_fallback_title(self):
+        from titles import transcript_title, usable_title
+        self.assertFalse(usable_title('https://v.douyin.com/example/'))
+        self.assertFalse(usable_title('在抖音记录美好生活20261013 - 抖音'))
+        self.assertEqual(transcript_title([{'text': '第一句话'}, {'text': '第二句话'}]), '第一句话，第二句话')
+
     def test_concatenated_links_and_share_text(self):
         self.assertEqual(extract_urls('分享 https://www.douyin.com/video/1https://www.douyin.com/video/2\nhttps://www.douyin.com/video/1'),
                          ['https://www.douyin.com/video/1', 'https://www.douyin.com/video/2'])

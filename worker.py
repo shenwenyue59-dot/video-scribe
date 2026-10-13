@@ -8,6 +8,7 @@ from transcript import parse_subtitles
 from browser_auth import add_browser_cookies, friendly_error
 from bridge_media import browser_media, download_media, is_browser_source
 from correction import correct_segments
+from titles import transcript_title, usable_title
 
 ROOT = Path(__file__).resolve().parent
 DLL_HANDLES = []
@@ -59,7 +60,8 @@ def process(config):
         if is_browser_source(config['url']) and not config.get('cookies') and not config.get('browser'):
             emit('status', message='正在通过 Kimi 浏览器扩展打开内容')
             browser = browser_media(config['url'])
-            context_title = browser.get('title') or context_title
+            if usable_title(browser.get('title')):
+                context_title = browser['title']
             emit('metadata', title=browser.get('title') or config['url'], duration=browser.get('duration'))
             if browser.get('src'):
                 media = str(Path(config['directory']) / 'browser-video.mp4')
@@ -127,7 +129,8 @@ def process(config):
             info = ydl.extract_info(config['url'], download=False)
             if not info or info.get('_type') in ('playlist', 'multi_video') or info.get('is_live'):
                 raise RuntimeError('请使用单条已发布视频的链接；暂不支持播放列表或直播。')
-            context_title = info.get('title') or context_title
+            if usable_title(info.get('title')):
+                context_title = info['title']
             emit('metadata', title=context_title or config['url'], duration=info.get('duration'))
             if (info.get('duration') or 0) > 7200:
                 raise RuntimeError('单条视频最长支持 2 小时，请分段上传。')
@@ -186,6 +189,9 @@ def process(config):
     if smart_correct and info.language.startswith('zh'):
         emit('status', message='正在结合全文语境校正同音词')
         result = correct_segments(result, context_title)
+    if config.get('url') and not usable_title(context_title):
+        context_title = transcript_title(result)
+        emit('metadata', title=context_title, title_source='逐字稿内容生成')
     source = '本地语音识别 · 上下文智能校正' if smart_correct else '本地语音识别'
     emit('result', segments=result, source=source, language=info.language)
 

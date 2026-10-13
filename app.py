@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from opencc import OpenCC
 from transcript import extract_urls, to_csv, to_srt
+from titles import transcript_title, usable_title
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('SCRIBE_DATA_DIR', str(ROOT / '.data'))).resolve()
@@ -54,6 +55,10 @@ def simplify_job(job):
             if converted != value:
                 segment['text'] = converted
                 changed = True
+    if job.get('status') == 'done' and job.get('url') and not usable_title(job.get('title')):
+        job['title'] = transcript_title(job.get('segments'))
+        job['title_source'] = '逐字稿内容生成'
+        changed = True
     return changed
 
 
@@ -77,6 +82,15 @@ for path in DATA.glob('*.json'):
         JOBS[item['id']] = item
     except (ValueError, KeyError):
         pass
+# Reuse an original platform title across repeated submissions of the same URL.
+known_titles = {item.get('url'): item.get('title') for item in JOBS.values()
+                if item.get('url') and usable_title(item.get('title')) and not item.get('title_source')}
+for item in JOBS.values():
+    known = known_titles.get(item.get('url'))
+    if known and item.get('title') != known:
+        item['title'] = known
+        item['title_source'] = '同链接历史记录'
+        save(item)
 # Interrupted workers can leave source media and credentials behind; remove only our temporary directory.
 TEMP = DATA / 'temporary'
 if TEMP.exists():
@@ -203,6 +217,11 @@ def options(language, model, mode):
 
 
 def create_job(title, url, language, model, mode, smart_correct=True):
+    if url:
+        with LOCK:
+            previous = next((item.get('title') for item in JOBS.values()
+                             if item.get('url') == url and usable_title(item.get('title'))), None)
+        title = previous or title
     identifier = uuid.uuid4().hex
     directory = TEMP / identifier
     directory.mkdir()
