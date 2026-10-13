@@ -169,11 +169,12 @@ def process(config):
                          cpu_threads=max(1, min(8, (os.cpu_count() or 4) // 2)),
                          download_root=str(ROOT / '.models'))
     emit('status', message='正在识别语音')
-    prompt = whisper_hotwords(context_title, glossary) if smart_correct else None
+    prompt = context_title[:48] if smart_correct and context_title else None
+    hotwords = whisper_hotwords('', glossary) if smart_correct else None
     segments, info = model.transcribe(
         media, language=None if config['language'] == 'auto' else config['language'],
         beam_size=8 if smart_correct else 5, vad_filter=True,
-        condition_on_previous_text=smart_correct, initial_prompt=prompt, hotwords=prompt)
+        condition_on_previous_text=smart_correct, initial_prompt=prompt, hotwords=hotwords)
     if info.duration > 7200:
         raise RuntimeError('单个文件最长支持 2 小时，请分段上传。')
     emit('metadata', duration=info.duration)

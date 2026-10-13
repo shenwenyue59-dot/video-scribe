@@ -75,8 +75,11 @@ def correct_segments(segments, title='', extra_terms=()):
     return [{**segment, 'text': correct_chinese_text(segment['text'], title, extra_terms)} for segment in segments]
 
 
-def whisper_hotwords(title='', extra_terms=(), limit=120):
+def whisper_hotwords(title='', extra_terms=(), limit=72):
     selected = list(extra_terms)
     selected.extend(re.findall(r'[\u4e00-\u9fff]{2,16}', title or ''))
     selected.extend(commerce_terms())
-    return '，'.join(dict.fromkeys(term for term in selected if term))[:1200]
+    # faster-whisper shares a 448-token prompt budget between the previous
+    # context, initial prompt and hotwords. Some Chinese characters expand to
+    # several tokens, so keep a deliberately small character ceiling.
+    return '，'.join(dict.fromkeys(term for term in selected if term))[:limit].rstrip('，')

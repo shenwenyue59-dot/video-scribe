@@ -16,13 +16,14 @@ from transcript import extract_urls, parse_subtitles, timestamp, to_srt
 
 class TranscriptTests(unittest.TestCase):
     def test_contextual_chinese_correction(self):
-        from correction import correct_chinese_text
+        from correction import correct_chinese_text, whisper_hotwords
         title = '超鸡魔王火锅鸡加盟'
         self.assertEqual(correct_chinese_text('火锅机加盟品牌', title), '火锅鸡加盟品牌')
         self.assertEqual(correct_chinese_text('你没惊艳总部派人', title), '你没经验总部派人')
         self.assertEqual(correct_chinese_text('你不需要重新养电'), '你不需要重新养店')
         self.assertEqual(correct_chinese_text('你不是把电翻个招牌，是把电翻了一套一粒模型'),
                          '你不是把店翻个招牌，是把店翻了一套盈利模型')
+        self.assertLessEqual(len(whisper_hotwords('', ['品牌专有词'] * 300)), 72)
 
     def test_transcript_fallback_title(self):
         from titles import transcript_title, usable_title
