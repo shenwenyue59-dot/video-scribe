@@ -1,0 +1,57 @@
+# 逐字 · 视频转文字
+
+在这台 Windows 电脑上运行的网页应用。粘贴视频链接，优先读取平台字幕；没有字幕时下载音频并使用 faster-whisper 在本机转写。也可以上传视频或音频。
+
+## 打开应用
+
+双击 **start.cmd**，等待浏览器自动打开 `http://127.0.0.1:8765`。运行期间保留启动窗口；关闭窗口会停止服务。再次启动可以查看历史逐字稿。
+
+首次安装自动下载应用专用的 Python 和依赖，不修改系统 Python。安装失败时检查网络后重新运行 `setup.ps1`，或在此文件夹打开 PowerShell 执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+## 使用
+
+1. 粘贴 1–10 个视频链接或分享文案。相邻粘在一起的 `https://` 链接也能拆分。
+2. 选择语言及模型。标准 Base 较快；精细 Small 更适合中文，但下载更大、识别更慢。
+3. 点击“生成逐字稿”。任务依次处理，可取消。
+4. 完成后点击任务查看原文或时间轴，复制文字，导出 TXT / SRT / 表格 CSV，或“全部导出” ZIP。CSV 每行包含视频标题、视频链接、序号、开始时间、结束时间和逐字内容，可直接用 Excel 或 WPS 打开。
+
+支持的链接入口：抖音、小红书、B站、YouTube、TikTok、Vimeo。抖音和小红书链接会优先通过已连接的 Kimi 浏览器扩展打开原视频、读取正在播放的媒体并在当前页面生成逐字稿，通常不需要手动配置 Cookies。请保持浏览器扩展和 Kimi WebBridge 连接；如果原视频本身无法播放，应用会提示改用文件上传。
+
+其他站点的兼容依赖 yt-dlp 和平台当前规则，并不保证每条链接都可读取。应用不会绕过付费、验证码或其他访问限制。平台需要登录时，可在高级选项中上传自己导出的 Netscape Cookies 文件；该文件只供对应任务使用，结束后删除。不要分享 Cookies 文件。
+
+非抖音站点遇到“Fresh cookies”或登录提示时：点击失败任务的“设置后重试”，在 Edge、Chrome 或 Firefox 中打开原视频并确认可以播放，然后在高级选项选择同一个浏览器、勾选本批任务授权并提交。程序只把对应平台的 Cookies 用于该平台请求，不把读取出的浏览器 Cookies 保存到结果；每次提交后授权勾选会清空。
+
+此功能使用 yt-dlp 的标准浏览器读取机制。浏览器文件占用、Windows 加密保护或平台限制可能导致读取失败；应用会显示对应原因，不会关闭浏览器或修改安全设置。没有读取到有效 Cookies 时，仍可使用 Netscape 格式 Cookies 文件或上传视频。浏览器和 Cookies 文件二选一。
+
+链接读取失败时，使用“上传文件”。支持 MP4、MOV、MKV、WebM、MP3、M4A、WAV、AAC、FLAC、OGG。单文件上限 500 MB、2 小时。任务处理超时为 2 小时。
+
+## 识别与网络
+
+- 语音识别在本机 CPU 上运行，没有云端识别费用，也无需 API 密钥。
+- 首次使用每种模型需要从 Hugging Face 下载；下载完成后，该模型可离线处理本地文件。网络无法连接时会显示错误。
+- 平台字幕、平台自动字幕、本地语音识别会分别标注来源。
+- 输出保留识别到的原话，不总结、不改写。模型可能遗漏语气词、重复或识别错人名；不能保证人工级逐字准确度，发布前请校对。
+- 上传文件和下载音频在任务结束后删除。文字结果保存在 `.data`，模型保存在 `.models`，运行环境保存在 `.runtime` 和 `.venv`。删除任务会删除该任务的本地文字记录。已导出的文件不受影响。
+- 服务仅绑定 `127.0.0.1`，供本机使用。不要直接暴露为公网服务。
+
+## 维护与开发
+
+重新运行 `setup.ps1` 可补齐依赖。站点规则变化时可更新提取器：
+
+```powershell
+.\.runtime\uv.exe pip install --python .venv\Scripts\python.exe --upgrade yt-dlp
+```
+
+运行检查：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+主要文件：`app.py` 提供本机 API 和任务队列；`worker.py` 执行独立、可取消的提取与识别任务；`transcript.py` 解析字幕及导出；`static/` 提供中文界面。
+
+依赖文档：[yt-dlp](https://github.com/yt-dlp/yt-dlp)、[faster-whisper](https://github.com/SYSTRAN/faster-whisper)、[uv](https://docs.astral.sh/uv/)。

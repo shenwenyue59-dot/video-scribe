@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>逐字 · 视频转文字</title>
+  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/"><span class="brand-icon">逐</span><span>逐字<small>VIDEO SCRIBE</small></span></a><span class="local"><i></i> 本机运行 · 无需 API 密钥</span></header>
+  <main>
+    <section class="intro"><div class="eyebrow">让值得留下的话，成为文字</div><h1>从一个链接，<br class="mobile">到一篇逐字稿<span>。</span></h1><p>读取视频字幕，或在本地识别人声。保留原话，也保留每一句的时间。</p></section>
+    <div class="workspace">
+      <aside>
+        <section class="card input-card">
+          <div class="tabs" role="tablist" aria-label="输入方式"><button id="link-tab" role="tab" aria-selected="true" aria-controls="link-panel" class="active">视频链接</button><button id="file-tab" role="tab" aria-selected="false" aria-controls="file-panel">上传文件</button></div>
+          <form id="task-form">
+            <div id="link-panel" role="tabpanel" aria-labelledby="link-tab">
+              <label for="links">粘贴链接或分享文案</label>
+              <textarea id="links" placeholder="https://www.douyin.com/video/…&#10;&#10;每行一个，也可以一次粘贴多条分享文案。" spellcheck="false"></textarea>
+              <div class="input-foot"><span>抖音 / 小红书 / B站 / YouTube / TikTok / Vimeo</span><span id="link-count">0 个链接</span></div>
+            </div>
+            <div id="file-panel" role="tabpanel" aria-labelledby="file-tab" hidden>
+              <label class="dropzone" id="dropzone" for="media"><span class="upload-symbol">↑</span><strong>选择视频或音频</strong><span>也可以把文件拖到这里</span><small>MP4、MOV、MP3、WAV 等<br>每个文件 ≤ 500 MB · 最长 2 小时</small><input id="media" type="file" accept=".mp4,.mov,.mkv,.webm,.mp3,.m4a,.wav,.aac,.flac,.ogg" multiple></label>
+              <p id="file-names" class="muted"></p>
+            </div>
+            <div class="settings"><div><label for="language">视频语言</label><select id="language"><option value="auto">自动识别</option><option value="zh">中文</option><option value="en">英语</option><option value="ja">日语</option><option value="ko">韩语</option></select></div><div><label for="model">语音模型</label><select id="model"><option value="base">标准 · Base</option><option value="small">精细 · Small</option><option value="tiny">快速 · Tiny</option></select></div></div>
+            <details id="advanced"><summary>高级选项<span>处理方式与登录信息</span></summary>
+              <label for="mode">链接处理方式</label><select id="mode"><option value="auto">自动：优先字幕，无字幕则识别语音</option><option value="captions">只读取平台字幕</option><option value="speech">始终识别语音</option></select>
+              <p class="hint">抖音和小红书链接会自动通过已连接的 Kimi 浏览器扩展读取；通常无需手动设置 Cookies。</p>
+              <label for="browser">备用：直接读取本机浏览器 Cookies（可选）</label>
+              <select id="browser"><option value="none">不使用浏览器登录状态</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="firefox">Firefox</option></select>
+              <div id="browser-help" hidden><p class="hint">先在所选浏览器中打开并确认视频可以播放，再回来提交。Codex 内置浏览器的登录状态不能直接使用。部分浏览器加密或文件占用可能阻止读取。</p><label class="consent"><input id="browser-consent" type="checkbox"><span>同意本批任务在本机读取所选浏览器 Cookies，仅将对应平台的 Cookies 用于请求该平台，不保存到结果。</span></label></div>
+              <label for="cookies">或选择 Cookies 文件（Netscape 格式）</label><input id="cookies" type="file" accept=".txt"><p class="hint">浏览器和文件二选一。Cookies 文件仅供本批任务使用，结束后删除。</p>
+            </details>
+            <button id="submit" class="primary" type="submit">生成逐字稿 <span>→</span></button>
+            <p id="form-message" class="message" role="status" aria-live="polite"></p>
+            <p class="hint note">首次语音识别需要下载模型。标准模型较快；中文精度优先时可选精细模型。上传后在本机处理，不发送到云端识别。</p>
+          </form>
+        </section>
+        <section class="tip"><span>↳</span><p><strong>遇到链接无法读取？</strong><br>平台可能要求登录或限制访问。可提供 Cookies，或直接上传视频 / 音频文件。</p></section>
+      </aside>
+      <section class="card results">
+        <div class="results-header"><div><h2>我的逐字稿 <span id="job-count">0</span></h2><p id="queue-status">你的内容会保存在这台电脑上</p></div><button id="export-all" class="subtle" disabled>全部导出 ↓</button></div>
+        <div id="empty" class="empty"><div class="paper"><span></span><span></span><span></span><b>“</b></div><h3>把视频里的好内容留下来</h3><p>从左侧添加链接或文件。<br>完成后在这里查看原文、时间轴，并导出文稿。</p><div class="steps"><span><b>01</b> 添加内容</span><span><b>02</b> 提取文字</span><span><b>03</b> 导出保存</span></div></div>
+        <div id="job-list" aria-label="任务列表"></div>
+        <div id="reader" hidden>
+          <div class="reader-header"><div><span id="source" class="source"></span><h3 id="reader-title"></h3><p id="reader-meta"></p></div><a id="original" target="_blank" rel="noopener noreferrer">原视频 ↗</a></div>
+          <div class="reader-toolbar"><div class="view-switch"><button id="plain-view" class="active">原文</button><button id="timed-view">时间轴</button></div><div><button id="copy">复制</button><button id="txt">TXT ↓</button><button id="srt">SRT ↓</button><button id="csv">表格 CSV ↓</button></div></div>
+          <div id="transcript" tabindex="0"></div><p class="verification">自动字幕和语音识别可能有误，发布前请对照原视频校对。</p>
+        </div>
+      </section>
+    </div>
+    <footer><span>逐字 · 让内容可回看、可检索、可整理</span><span id="connection">正在连接本机服务…</span></footer>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,9 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+python-multipart>=0.0.20,<1
+yt-dlp>=2026.3.3
+faster-whisper>=1.2,<2
+av>=11,<17
+webvtt-py>=0.5,<1
+httpx>=0.28,<1
+msvc-runtime>=14.44; sys_platform == 'win32'
