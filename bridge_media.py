@@ -56,16 +56,20 @@ def validate_media_url(url, platform='douyin'):
 
 def command(action, args, timeout=35):
     payload = json.dumps({'action': action, 'args': args, 'session': SESSION}, ensure_ascii=False).encode('utf-8')
-    request = Request(BRIDGE_URL, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            envelope = json.loads(response.read().decode('utf-8'))
-    except Exception as exc:
-        raise RuntimeError(f'BRIDGE_UNAVAILABLE: 无法连接 Kimi 浏览器扩展：{exc}') from exc
-    if not envelope.get('ok'):
-        message = (envelope.get('error') or {}).get('message') or '未知错误'
-        raise RuntimeError(f'BRIDGE_UNAVAILABLE: Kimi 浏览器扩展未就绪：{message}')
-    return envelope.get('data') or {}
+    last_error = '未知错误'
+    for attempt in range(6):
+        request = Request(BRIDGE_URL, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                envelope = json.loads(response.read().decode('utf-8'))
+            if envelope.get('ok'):
+                return envelope.get('data') or {}
+            last_error = (envelope.get('error') or {}).get('message') or '未知错误'
+        except Exception as exc:
+            last_error = str(exc)
+        if attempt < 5:
+            time.sleep(1)
+    raise RuntimeError(f'BRIDGE_UNAVAILABLE: Kimi 浏览器扩展未就绪：{last_error}')
 
 
 def browser_media(url):

@@ -55,7 +55,7 @@ def process(config):
         # user has connected Kimi Browser Extension, use the real playable page
         # instead of copying encrypted browser cookie databases.
         if is_browser_source(config['url']) and not config.get('cookies') and not config.get('browser'):
-            emit('status', message='正在通过 Kimi 浏览器扩展打开视频')
+            emit('status', message='正在通过 Kimi 浏览器扩展打开内容')
             browser = browser_media(config['url'])
             emit('metadata', title=browser.get('title') or config['url'], duration=browser.get('duration'))
             if browser.get('src'):
