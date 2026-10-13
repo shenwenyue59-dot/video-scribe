@@ -342,6 +342,23 @@ def delete(identifier: str):
     return {'ok': True}
 
 
+@app.delete('/api/delete-selected')
+def delete_selected(ids: str):
+    requested = list(dict.fromkeys(item for item in ids.split(',') if item))
+    if not requested or len(requested) > 100 or any(not re.fullmatch(r'[a-f0-9]{32}', item) for item in requested):
+        raise HTTPException(400, '删除选择无效')
+    with LOCK:
+        jobs = [JOBS.get(item) for item in requested]
+        if any(not job for job in jobs):
+            raise HTTPException(404, '所选记录中有任务不存在')
+        if any(job['status'] not in TERMINAL or job['id'] in PROCESSES for job in jobs):
+            raise HTTPException(409, '处理中或排队中的任务不能批量删除，请先取消。')
+        for job in jobs:
+            JOBS.pop(job['id'], None)
+            (DATA / (job['id'] + '.json')).unlink(missing_ok=True)
+    return {'ok': True, 'deleted': len(jobs)}
+
+
 def filename(job):
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', job['title'])[:90].strip(' .') or '逐字稿'
 

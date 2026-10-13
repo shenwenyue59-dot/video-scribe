@@ -100,6 +100,16 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(Path(config['media']).read_bytes(), b'RIFFtest')
         self.assertEqual(config['mode'], 'speech')
 
+    def test_bulk_delete_terminal_jobs(self):
+        with patch.object(app.POOL, 'submit'):
+            ids = self.client.post('/api/links', data={'links':'https://youtu.be/ahttps://youtu.be/b'}).json()['ids']
+        app.update(ids[0], status='done', text='完成', segments=[{'start':0,'end':1,'text':'完成'}])
+        app.update(ids[1], status='error', message='失败')
+        result = self.client.delete('/api/delete-selected?ids=' + ','.join(ids))
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['deleted'], 2)
+        self.assertEqual(self.client.get('/api/jobs').json(), [])
+
     def test_browser_auth_requires_explicit_batch_consent(self):
         data = {'links':'https://www.douyin.com/video/123', 'browser':'edge'}
         with patch.object(app.POOL, 'submit') as submit:
