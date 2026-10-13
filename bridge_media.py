@@ -74,7 +74,22 @@ def browser_media(url):
         raise RuntimeError('BRIDGE_MEDIA_INVALID: 当前链接不支持浏览器读取。')
     tabs = command('list_tabs', {}).get('tabs') or []
     command('navigate', {'url': url, 'newTab': not bool(tabs), 'group_title': '逐字稿自动取视频'})
-    script = """(() => { const v=document.querySelector('video'); const src=v?.currentSrc||v?.src||''; const d=document.querySelector('meta[name=\"description\"]')?.content||''; return JSON.stringify({src,title:document.title||d||'',duration:Number.isFinite(v?.duration)?v.duration:null,pageUrl:location.href}); })()"""
+    script = """(() => {
+      const v=document.querySelector('video');
+      let src=v?.currentSrc||v?.src||'';
+      let structured={};
+      for(const node of document.querySelectorAll('script[type="application/ld+json"]')) {
+        try {
+          const value=JSON.parse(node.textContent||'{}');
+          const candidates=Array.isArray(value)?value:[value];
+          const video=candidates.find(x=>x&&x['@type']==='VideoObject'&&x.contentUrl);
+          if(video){ structured=video; break; }
+        } catch(e) {}
+      }
+      if(!src||src.startsWith('blob:')) src=structured.contentUrl||'';
+      const d=document.querySelector('meta[name="description"]')?.content||'';
+      return JSON.stringify({src,title:structured.name||document.title||d||'',duration:Number.isFinite(v?.duration)?v.duration:null,pageUrl:location.href});
+    })()"""
     last = {}
     for _ in range(24):
         result = command('evaluate', {'code': script})
