@@ -15,6 +15,12 @@ from transcript import extract_urls, parse_subtitles, timestamp, to_srt
 
 
 class TranscriptTests(unittest.TestCase):
+    def test_contextual_chinese_correction(self):
+        from correction import correct_chinese_text
+        title = '超鸡魔王火锅鸡加盟'
+        self.assertEqual(correct_chinese_text('火锅机加盟品牌', title), '火锅鸡加盟品牌')
+        self.assertEqual(correct_chinese_text('你没惊艳总部派人', title), '你没经验总部派人')
+
     def test_concatenated_links_and_share_text(self):
         self.assertEqual(extract_urls('分享 https://www.douyin.com/video/1https://www.douyin.com/video/2\nhttps://www.douyin.com/video/1'),
                          ['https://www.douyin.com/video/1', 'https://www.douyin.com/video/2'])
@@ -99,6 +105,7 @@ class ApiTests(unittest.TestCase):
         config = submit.call_args.args[1]
         self.assertEqual(Path(config['media']).read_bytes(), b'RIFFtest')
         self.assertEqual(config['mode'], 'speech')
+        self.assertTrue(config['smart_correct'])
 
     def test_bulk_delete_terminal_jobs(self):
         with patch.object(app.POOL, 'submit'):

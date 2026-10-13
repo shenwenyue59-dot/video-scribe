@@ -202,14 +202,15 @@ def options(language, model, mode):
             raise HTTPException(429, '队列已满，请等待现有任务完成。')
 
 
-def create_job(title, url, language, model, mode):
+def create_job(title, url, language, model, mode, smart_correct=True):
     identifier = uuid.uuid4().hex
     directory = TEMP / identifier
     directory.mkdir()
     job = {'id': identifier, 'title': title, 'url': url, 'created': datetime.now(timezone.utc).isoformat(),
            'status': 'queued', 'message': '等待处理', 'segments': [], 'text': '', 'source': '',
-           'language': language, 'model': model, 'mode': mode, 'duration': None}
-    config = {'id': identifier, 'directory': str(directory), 'url': url, 'language': language, 'model': model, 'mode': mode}
+           'language': language, 'model': model, 'mode': mode, 'smart_correct': smart_correct, 'duration': None}
+    config = {'id': identifier, 'directory': str(directory), 'url': url, 'language': language,
+              'model': model, 'mode': mode, 'smart_correct': smart_correct, 'title': title}
     return job, config
 
 
@@ -243,7 +244,8 @@ def detail(identifier: str):
 @app.post('/api/links')
 async def links(links: str = Form(...), language: str = Form('auto'), model: str = Form('base'),
                 mode: str = Form('auto'), cookies: UploadFile | None = File(None),
-                browser: str = Form('none'), browser_consent: bool = Form(False)):
+                browser: str = Form('none'), browser_consent: bool = Form(False),
+                smart_correct: bool = Form(True)):
     options(language, model, mode)
     if browser not in ('none', 'edge', 'chrome', 'firefox'):
         raise HTTPException(400, '请选择支持的浏览器')
@@ -274,7 +276,7 @@ async def links(links: str = Form(...), language: str = Form('auto'), model: str
             raise HTTPException(400, 'Cookies 文件必须是 Netscape 格式，且小于 2 MB。')
     identifiers = []
     for url in urls:
-        job, config = create_job(url, url, language, model, mode)
+        job, config = create_job(url, url, language, model, mode, smart_correct)
         if browser != 'none':
             config['browser'] = browser
         if cookie_data:
@@ -287,12 +289,13 @@ async def links(links: str = Form(...), language: str = Form('auto'), model: str
 
 
 @app.post('/api/upload')
-async def upload(file: UploadFile = File(...), language: str = Form('auto'), model: str = Form('base')):
+async def upload(file: UploadFile = File(...), language: str = Form('auto'), model: str = Form('base'),
+                 smart_correct: bool = Form(True)):
     options(language, model, 'speech')
     suffix = Path(file.filename or '').suffix.lower()
     if suffix not in ('.mp4', '.m4a', '.mp3', '.wav', '.webm', '.mov', '.mkv', '.aac', '.flac', '.ogg'):
         raise HTTPException(400, '不支持该文件格式，请上传视频或音频。')
-    job, config = create_job(Path(file.filename).name, '', language, model, 'speech')
+    job, config = create_job(Path(file.filename).name, '', language, model, 'speech', smart_correct)
     media = Path(config['directory']) / ('upload' + suffix)
     try:
         size = 0

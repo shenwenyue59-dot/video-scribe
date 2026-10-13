@@ -151,7 +151,8 @@ def browser_media(url):
             last = json.loads(result.get('value') or '{}')
         except (TypeError, ValueError):
             last = {}
-        if last.get('src') and not last['src'].startswith('blob:'):
+        title_ready = bool(last.get('title')) and not str(last['title']).startswith(('http://', 'https://'))
+        if last.get('src') and not last['src'].startswith('blob:') and (title_ready or attempt >= 8):
             last['src'] = validate_media_url(last['src'], platform)
             last['platform'] = platform
             return last

@@ -7,6 +7,7 @@ import traceback
 from transcript import parse_subtitles
 from browser_auth import add_browser_cookies, friendly_error
 from bridge_media import browser_media, download_media, is_browser_source
+from correction import correct_segments
 
 ROOT = Path(__file__).resolve().parent
 DLL_HANDLES = []
@@ -50,6 +51,7 @@ def subtitle_choices(info, language):
 
 def process(config):
     media = config.get('media')
+    context_title = config.get('title') or ''
     if config.get('url'):
         # Douyin protects its media API with browser-generated signatures. When the
         # user has connected Kimi Browser Extension, use the real playable page
@@ -57,6 +59,7 @@ def process(config):
         if is_browser_source(config['url']) and not config.get('cookies') and not config.get('browser'):
             emit('status', message='正在通过 Kimi 浏览器扩展打开内容')
             browser = browser_media(config['url'])
+            context_title = browser.get('title') or context_title
             emit('metadata', title=browser.get('title') or config['url'], duration=browser.get('duration'))
             if browser.get('src'):
                 media = str(Path(config['directory']) / 'browser-video.mp4')
@@ -124,7 +127,8 @@ def process(config):
             info = ydl.extract_info(config['url'], download=False)
             if not info or info.get('_type') in ('playlist', 'multi_video') or info.get('is_live'):
                 raise RuntimeError('请使用单条已发布视频的链接；暂不支持播放列表或直播。')
-            emit('metadata', title=info.get('title') or config['url'], duration=info.get('duration'))
+            context_title = info.get('title') or context_title
+            emit('metadata', title=context_title or config['url'], duration=info.get('duration'))
             if (info.get('duration') or 0) > 7200:
                 raise RuntimeError('单条视频最长支持 2 小时，请分段上传。')
             if config['mode'] != 'speech':
@@ -153,12 +157,19 @@ def process(config):
                 raise RuntimeError('音频未下载成功，可能超出大小限制；请改用文件上传。')
     emit('status', message='正在加载本地模型；首次使用需要联网下载，可能需要数分钟')
     from faster_whisper import WhisperModel
-    model = WhisperModel(config['model'], device='cpu', compute_type='int8',
+    smart_correct = bool(config.get('smart_correct', True))
+    model_name = 'small' if smart_correct and config['model'] in ('tiny', 'base') else config['model']
+    if smart_correct and model_name != config['model']:
+        emit('status', message='智能校正已开启，正在加载精细中文模型')
+    model = WhisperModel(model_name, device='cpu', compute_type='int8',
                          cpu_threads=max(1, min(8, (os.cpu_count() or 4) // 2)),
                          download_root=str(ROOT / '.models'))
     emit('status', message='正在识别语音')
-    segments, info = model.transcribe(media, language=None if config['language'] == 'auto' else config['language'],
-                                      beam_size=5, vad_filter=True, condition_on_previous_text=False)
+    prompt = context_title[:240] if smart_correct and context_title else None
+    segments, info = model.transcribe(
+        media, language=None if config['language'] == 'auto' else config['language'],
+        beam_size=8 if smart_correct else 5, vad_filter=True,
+        condition_on_previous_text=smart_correct, initial_prompt=prompt, hotwords=prompt)
     if info.duration > 7200:
         raise RuntimeError('单个文件最长支持 2 小时，请分段上传。')
     emit('metadata', duration=info.duration)
@@ -172,7 +183,11 @@ def process(config):
         emit('status', message=f'正在识别语音 · {int(end)} / {int(info.duration)} 秒')
     if not result:
         raise RuntimeError('没有检测到可识别的人声，请检查音轨或换一个文件。')
-    emit('result', segments=result, source='本地语音识别', language=info.language)
+    if smart_correct and info.language.startswith('zh'):
+        emit('status', message='正在结合全文语境校正同音词')
+        result = correct_segments(result, context_title)
+    source = '本地语音识别 · 上下文智能校正' if smart_correct else '本地语音识别'
+    emit('result', segments=result, source=source, language=info.language)
 
 
 if __name__ == '__main__':
