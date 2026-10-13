@@ -87,11 +87,34 @@ def browser_media(url):
         } catch(e) {}
       }
       if(!src||src.startsWith('blob:')) src=structured.contentUrl||'';
+      const imageUrls=[];
+      const addImage=value=>{
+        if(typeof value!=='string') return;
+        try { const u=new URL(value); if(u.protocol==='http:'&&u.hostname.endsWith('xhscdn.com')) u.protocol='https:'; if(u.protocol==='https:'&&u.hostname.endsWith('xhscdn.com')&&!imageUrls.includes(u.href)) imageUrls.push(u.href); } catch(e) {}
+      };
+      const noteId=location.pathname.split('/').find(x=>/^[a-f0-9]{24}$/i.test(x))||'';
+      let note={};
+      try {
+        const state=window.__INITIAL_STATE__||{};
+        note=state.note?.noteDetailMap?.[noteId]?.note||
+          (state.feed?.undertakeNote?._rawValue?.items||state.feed?.undertakeNote?._value?.items||[])
+            .map(x=>x.noteCard).find(x=>x?.noteId===noteId)||{};
+      } catch(e) {}
+      for(const image of note.imageList||[]) {
+        if(typeof image==='string') addImage(image);
+        else if(image) addImage(image.urlDefault||image.urlPre||image.url);
+      }
+      if(!imageUrls.length) {
+        const structuredImages=Array.isArray(structured.image)?structured.image:[structured.image];
+        structuredImages.filter(Boolean).forEach(x=>addImage(typeof x==='string'?x:(x.contentUrl||x.url)));
+      }
+      if(!imageUrls.length) [...document.querySelectorAll('.note-slider img,[class*="swiper"] img,[class*="carousel"] img')]
+        .filter(x=>x.naturalWidth>=300&&x.naturalHeight>=300).forEach(x=>addImage(x.currentSrc||x.src));
       const d=document.querySelector('meta[name="description"]')?.content||'';
-      return JSON.stringify({src,title:structured.name||document.title||d||'',duration:Number.isFinite(v?.duration)?v.duration:null,pageUrl:location.href});
+      return JSON.stringify({src,title:note.title||structured.name||document.title||d||'',postText:note.desc||structured.description||d||'',imageUrls:imageUrls.slice(0,30),duration:Number.isFinite(v?.duration)?v.duration:null,pageUrl:location.href});
     })()"""
     last = {}
-    for _ in range(24):
+    for attempt in range(24):
         result = command('evaluate', {'code': script})
         try:
             last = json.loads(result.get('value') or '{}')
@@ -101,8 +124,14 @@ def browser_media(url):
             last['src'] = validate_media_url(last['src'], platform)
             last['platform'] = platform
             return last
+        if platform == 'xiaohongshu' and (last.get('imageUrls') or
+                                           (last.get('postText') and attempt >= 4)):
+            last['imageUrls'] = [validate_media_url(item, platform)
+                                 for item in (last.get('imageUrls') or [])]
+            last['platform'] = platform
+            return last
         time.sleep(.75)
-    raise RuntimeError('BRIDGE_MEDIA_MISSING: 视频页面已打开，但播放器没有返回媒体地址。请在 Edge 中确认视频可以正常播放。')
+    raise RuntimeError('BRIDGE_MEDIA_MISSING: 页面已打开，但没有返回可读取的视频或图文内容。请在 Edge 中确认帖子可以正常浏览。')
 
 
 def download_media(source_url, destination, referer, platform='douyin', limit=500 * 1024 * 1024):

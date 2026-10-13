@@ -43,7 +43,7 @@ def friendly_error(message):
     if 'bridge_unavailable' in lower:
         return 'bridge_unavailable', 'Kimi 浏览器扩展未连接。请在 Edge 的 Kimi 扩展中开启“本地代理远程控制”，然后重试。'
     if 'bridge_media_missing' in lower:
-        return 'bridge_media_missing', '视频页面已经打开，但没有取得播放器地址。请在 Edge 中确认视频可以播放后重试。'
+        return 'bridge_media_missing', '页面已经打开，但没有取得可读取的视频或图文内容。请在 Edge 中确认帖子可以正常浏览后重试。'
     if 'bridge_media_invalid' in lower or 'bridge_download_failed' in lower:
         return 'bridge_download_failed', '已经打开视频，但媒体地址无法安全下载。请重试或改用文件上传。'
     if any(word in lower for word in ('could not copy', 'database is locked', 'permission denied', 'being used by another process')):

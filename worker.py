@@ -58,11 +58,42 @@ def process(config):
             emit('status', message='正在通过 Kimi 浏览器扩展打开视频')
             browser = browser_media(config['url'])
             emit('metadata', title=browser.get('title') or config['url'], duration=browser.get('duration'))
-            media = str(Path(config['directory']) / 'browser-video.mp4')
-            emit('status', message='已取得播放器地址，正在下载视频')
-            download_media(browser['src'], media, browser.get('pageUrl') or config['url'],
-                           browser.get('platform', 'douyin'))
-            emit('status', message='视频下载完成，准备识别语音')
+            if browser.get('src'):
+                media = str(Path(config['directory']) / 'browser-video.mp4')
+                emit('status', message='已取得播放器地址，正在下载视频')
+                download_media(browser['src'], media, browser.get('pageUrl') or config['url'],
+                               browser.get('platform', 'douyin'))
+                emit('status', message='视频下载完成，准备识别语音')
+            else:
+                emit('status', message='正在读取帖子正文和配图')
+                result = []
+                post_text = (browser.get('postText') or '').strip()
+                if post_text:
+                    result.append({'start': 0, 'end': 1, 'text': '【帖子内容】\n' + post_text})
+                image_urls = browser.get('imageUrls') or []
+                if image_urls:
+                    emit('status', message=f'正在识别图片文字 · 0 / {len(image_urls)} 张')
+                    from rapidocr_onnxruntime import RapidOCR
+                    ocr = RapidOCR()
+                    for index, image_url in enumerate(image_urls, 1):
+                        image_path = str(Path(config['directory']) / f'image-{index:02}.jpg')
+                        download_media(image_url, image_path, browser.get('pageUrl') or config['url'],
+                                       'xiaohongshu', limit=25 * 1024 * 1024)
+                        lines, _ = ocr(image_path)
+                        texts = []
+                        for item in lines or []:
+                            text = str(item[1]).strip()
+                            confidence = float(item[2])
+                            if text and confidence >= 0.45 and text not in texts:
+                                texts.append(text)
+                        if texts:
+                            result.append({'start': index, 'end': index + 1,
+                                           'text': f'【图片 {index} 文字】\n' + '\n'.join(texts)})
+                        emit('status', message=f'正在识别图片文字 · {index} / {len(image_urls)} 张')
+                if not result:
+                    raise RuntimeError('页面已打开，但没有读取到帖子正文或可识别的图片文字。')
+                emit('result', segments=result, source='帖子内容 + 图片文字', language='zh')
+                return
         else:
             media = None
     if config.get('url') and not media:

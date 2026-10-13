@@ -7,3 +7,5 @@ av>=11,<17
 webvtt-py>=0.5,<1
 httpx>=0.28,<1
 msvc-runtime>=14.44; sys_platform == 'win32'
+rapidocr-onnxruntime>=1.4,<2
+Pillow>=12,<13
