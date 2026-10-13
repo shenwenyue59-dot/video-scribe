@@ -25,6 +25,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from opencc import OpenCC
 from transcript import extract_urls, to_csv, to_srt
 from titles import transcript_title, usable_title
+from correction import correct_segments
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('SCRIBE_DATA_DIR', str(ROOT / '.data'))).resolve()
@@ -58,6 +59,17 @@ def simplify_job(job):
     if job.get('status') == 'done' and job.get('url') and not usable_title(job.get('title')):
         job['title'] = transcript_title(job.get('segments'))
         job['title_source'] = '逐字稿内容生成'
+        changed = True
+    if (job.get('status') == 'done' and job.get('smart_correct') and
+            '本地语音识别' in job.get('source', '') and not job.get('lexicon_version')):
+        original = deepcopy(job.get('segments') or [])
+        corrected = correct_segments(original, job.get('title', ''))
+        if corrected != original:
+            job['raw_segments'] = original
+            job['raw_text'] = '\n'.join(segment['text'] for segment in original)
+            job['segments'] = corrected
+            job['text'] = '\n'.join(segment['text'] for segment in corrected)
+        job['lexicon_version'] = 1
         changed = True
     return changed
 
@@ -248,7 +260,7 @@ def health():
 @app.get('/api/jobs')
 def jobs():
     with LOCK:
-        return [{k: v for k, v in j.items() if k not in ('segments', 'text')}
+        return [{k: v for k, v in j.items() if k not in ('segments', 'text', 'raw_segments', 'raw_text')}
                 for j in sorted(JOBS.values(), key=lambda j: j['created'], reverse=True)]
 
 
@@ -264,8 +276,11 @@ def detail(identifier: str):
 async def links(links: str = Form(...), language: str = Form('auto'), model: str = Form('base'),
                 mode: str = Form('auto'), cookies: UploadFile | None = File(None),
                 browser: str = Form('none'), browser_consent: bool = Form(False),
-                smart_correct: bool = Form(True)):
+                smart_correct: bool = Form(True), glossary: str = Form('')):
     options(language, model, mode)
+    glossary_terms = [term.strip() for term in re.split(r'[,，\n]', glossary) if term.strip()]
+    if len(glossary) > 5000 or len(glossary_terms) > 200 or any(len(term) > 24 for term in glossary_terms):
+        raise HTTPException(400, '自定义词库最多 200 个词，每个词不超过 24 个字。')
     if browser not in ('none', 'edge', 'chrome', 'firefox'):
         raise HTTPException(400, '请选择支持的浏览器')
     if browser != 'none' and not browser_consent:
@@ -296,6 +311,7 @@ async def links(links: str = Form(...), language: str = Form('auto'), model: str
     identifiers = []
     for url in urls:
         job, config = create_job(url, url, language, model, mode, smart_correct)
+        config['glossary'] = glossary_terms
         if browser != 'none':
             config['browser'] = browser
         if cookie_data:
@@ -309,12 +325,16 @@ async def links(links: str = Form(...), language: str = Form('auto'), model: str
 
 @app.post('/api/upload')
 async def upload(file: UploadFile = File(...), language: str = Form('auto'), model: str = Form('base'),
-                 smart_correct: bool = Form(True)):
+                 smart_correct: bool = Form(True), glossary: str = Form('')):
     options(language, model, 'speech')
+    glossary_terms = [term.strip() for term in re.split(r'[,，\n]', glossary) if term.strip()]
+    if len(glossary) > 5000 or len(glossary_terms) > 200 or any(len(term) > 24 for term in glossary_terms):
+        raise HTTPException(400, '自定义词库最多 200 个词，每个词不超过 24 个字。')
     suffix = Path(file.filename or '').suffix.lower()
     if suffix not in ('.mp4', '.m4a', '.mp3', '.wav', '.webm', '.mov', '.mkv', '.aac', '.flac', '.ogg'):
         raise HTTPException(400, '不支持该文件格式，请上传视频或音频。')
     job, config = create_job(Path(file.filename).name, '', language, model, 'speech', smart_correct)
+    config['glossary'] = glossary_terms
     media = Path(config['directory']) / ('upload' + suffix)
     try:
         size = 0

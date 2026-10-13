@@ -7,7 +7,7 @@ import traceback
 from transcript import parse_subtitles
 from browser_auth import add_browser_cookies, friendly_error
 from bridge_media import browser_media, download_media, is_browser_source
-from correction import correct_segments
+from correction import correct_segments, whisper_hotwords
 from titles import transcript_title, usable_title
 
 ROOT = Path(__file__).resolve().parent
@@ -161,6 +161,7 @@ def process(config):
     emit('status', message='正在加载本地模型；首次使用需要联网下载，可能需要数分钟')
     from faster_whisper import WhisperModel
     smart_correct = bool(config.get('smart_correct', True))
+    glossary = config.get('glossary') or []
     model_name = 'small' if smart_correct and config['model'] in ('tiny', 'base') else config['model']
     if smart_correct and model_name != config['model']:
         emit('status', message='智能校正已开启，正在加载精细中文模型')
@@ -168,7 +169,7 @@ def process(config):
                          cpu_threads=max(1, min(8, (os.cpu_count() or 4) // 2)),
                          download_root=str(ROOT / '.models'))
     emit('status', message='正在识别语音')
-    prompt = context_title[:240] if smart_correct and context_title else None
+    prompt = whisper_hotwords(context_title, glossary) if smart_correct else None
     segments, info = model.transcribe(
         media, language=None if config['language'] == 'auto' else config['language'],
         beam_size=8 if smart_correct else 5, vad_filter=True,
@@ -188,7 +189,7 @@ def process(config):
         raise RuntimeError('没有检测到可识别的人声，请检查音轨或换一个文件。')
     if smart_correct and info.language.startswith('zh'):
         emit('status', message='正在结合全文语境校正同音词')
-        result = correct_segments(result, context_title)
+        result = correct_segments(result, context_title, glossary)
     if config.get('url') and not usable_title(context_title):
         context_title = transcript_title(result)
         emit('metadata', title=context_title, title_source='逐字稿内容生成')

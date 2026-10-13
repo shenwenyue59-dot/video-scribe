@@ -1,5 +1,6 @@
 """Conservative Chinese ASR corrections using context and title vocabulary."""
 import re
+from pathlib import Path
 
 from pypinyin import lazy_pinyin
 
@@ -16,7 +17,22 @@ COMMON_ASR_FIXES = (
     (r'手把手胶', '手把手教'),
     (r'租金天空', '租金天坑'),
     (r'文文起步', '稳稳起步'),
+    (r'([开养守盘接进到])电', r'\1店'),
+    (r'把电(?=[翻换改做])', '把店'),
+    (r'电(?=[里内面租员长主铺面])', '店'),
+    (r'一粒模型', '盈利模型'),
 )
+
+LEXICON_PATH = Path(__file__).resolve().parent / 'lexicons' / 'commerce_zh.txt'
+
+
+def commerce_terms(extra_terms=()):
+    terms = LEXICON_PATH.read_text(encoding='utf-8').splitlines() if LEXICON_PATH.is_file() else []
+    for term in extra_terms:
+        term = str(term).strip()
+        if 1 < len(term) <= 24 and term not in terms:
+            terms.insert(0, term)
+    return terms
 
 
 def _title_vocabulary(title):
@@ -31,11 +47,20 @@ def _title_vocabulary(title):
     return vocabulary
 
 
-def correct_chinese_text(text, title=''):
+def _lexicon_vocabulary(extra_terms=()):
+    vocabulary = {}
+    for word in commerce_terms(extra_terms):
+        if 2 <= len(word) <= 8:
+            vocabulary.setdefault((len(word), tuple(lazy_pinyin(word))), word)
+    return vocabulary
+
+
+def correct_chinese_text(text, title='', extra_terms=()):
     corrected = text
     for pattern, replacement in COMMON_ASR_FIXES:
         corrected = re.sub(pattern, replacement, corrected)
-    vocabulary = _title_vocabulary(title)
+    vocabulary = _lexicon_vocabulary(extra_terms)
+    vocabulary.update(_title_vocabulary(title))
     if vocabulary:
         for size in range(8, 1, -1):
             pattern = re.compile(rf'[\u4e00-\u9fff]{{{size}}}')
@@ -46,5 +71,12 @@ def correct_chinese_text(text, title=''):
     return corrected
 
 
-def correct_segments(segments, title=''):
-    return [{**segment, 'text': correct_chinese_text(segment['text'], title)} for segment in segments]
+def correct_segments(segments, title='', extra_terms=()):
+    return [{**segment, 'text': correct_chinese_text(segment['text'], title, extra_terms)} for segment in segments]
+
+
+def whisper_hotwords(title='', extra_terms=(), limit=120):
+    selected = list(extra_terms)
+    selected.extend(re.findall(r'[\u4e00-\u9fff]{2,16}', title or ''))
+    selected.extend(commerce_terms())
+    return '，'.join(dict.fromkeys(term for term in selected if term))[:1200]

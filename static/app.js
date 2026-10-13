@@ -27,7 +27,7 @@ $('dropzone').addEventListener('drop', e => { $('media').files = e.dataTransfer.
 $('task-form').onsubmit = async e => {
   e.preventDefault(); if (busy) return;
   $('form-message').textContent = ''; busy = true; $('submit').disabled = true; $('submit').textContent = '正在提交…';
-  const fields = () => { const data = new FormData(); data.append('language', $('language').value); data.append('model', $('model').value); data.append('smart_correct', String($('smart-correct').checked)); return data; };
+  const fields = () => { const data = new FormData(); data.append('language', $('language').value); data.append('model', $('model').value); data.append('smart_correct', String($('smart-correct').checked)); data.append('glossary', $('glossary').value); return data; };
   let created = [];
   try {
     if (inputMode === 'links') {
