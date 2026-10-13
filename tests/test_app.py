@@ -24,15 +24,19 @@ class TranscriptTests(unittest.TestCase):
         self.assertEqual(correct_chinese_text('你不是把电翻个招牌，是把电翻了一套一粒模型'),
                          '你不是把店翻个招牌，是把店翻了一套盈利模型')
         self.assertLessEqual(len(whisper_hotwords('', ['品牌专有词'] * 300)), 72)
+        self.assertEqual(whisper_hotwords('抖音商城', (), 'douyin'), '')
+        self.assertEqual(whisper_hotwords('', ['超鸡魔王'], 'douyin'), '超鸡魔王')
         self.assertGreaterEqual(len(commerce_terms()), 1000)
         self.assertIn('巨量千川', commerce_terms())
         self.assertIn('万相台AI无界', commerce_terms())
 
     def test_transcript_fallback_title(self):
-        from titles import transcript_title, usable_title
+        from titles import fallback_title, transcript_title, usable_title
         self.assertFalse(usable_title('https://v.douyin.com/example/'))
         self.assertFalse(usable_title('在抖音记录美好生活20261013 - 抖音'))
+        self.assertFalse(usable_title('【自动生成】第一句话'))
         self.assertEqual(transcript_title([{'text': '第一句话'}, {'text': '第二句话'}]), '第一句话，第二句话')
+        self.assertEqual(fallback_title([{'text': '第一句话'}]), '【自动生成】第一句话')
 
     def test_concatenated_links_and_share_text(self):
         self.assertEqual(extract_urls('分享 https://www.douyin.com/video/1https://www.douyin.com/video/2\nhttps://www.douyin.com/video/1'),

@@ -2,7 +2,8 @@
 import re
 
 
-GENERIC_TITLES = ('在抖音记录美好生活', '抖音-记录美好生活', '小红书', 'xiaohongshu')
+GENERIC_TITLES = ('在抖音记录美好生活', '抖音-记录美好生活', '小红书', 'xiaohongshu',
+                  '【自动生成】', '原视频标题未读取到')
 
 
 def usable_title(title):
@@ -24,3 +25,8 @@ def transcript_title(segments, limit=38):
     if len(value) > limit:
         value = value[:limit].rstrip('，。！？,.!? ') + '…'
     return value or '未命名逐字稿'
+
+
+def fallback_title(segments):
+    """A useful label that is visibly different from platform metadata."""
+    return '【自动生成】' + transcript_title(segments)

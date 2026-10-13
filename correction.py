@@ -88,19 +88,9 @@ def correct_segments(segments, title='', extra_terms=()):
 
 
 def whisper_hotwords(title='', extra_terms=(), platform='', limit=72):
-    selected = list(extra_terms)
-    selected.extend(re.findall(r'[\u4e00-\u9fff]{2,16}', title or ''))
-    terms = commerce_terms()
-    title_chars = set(re.sub(r'[^\u4e00-\u9fff]', '', title or ''))
-    if title_chars:
-        selected.extend(sorted(terms, key=lambda term: len(title_chars.intersection(term)), reverse=True)[:80])
-    platform_name = ('douyin_official_zh.txt' if platform == 'douyin' else
-                     'taobao_tmall_official_zh.txt' if platform in ('taobao', 'tmall') else '')
-    platform_file = LEXICON_DIR / platform_name if platform_name else None
-    if platform_file and platform_file.is_file():
-        selected.extend(platform_file.read_text(encoding='utf-8').splitlines())
-    selected.extend(terms)
-    # faster-whisper shares a 448-token prompt budget between the previous
-    # context, initial prompt and hotwords. Some Chinese characters expand to
-    # several tokens, so keep a deliberately small character ceiling.
+    # Only user-provided proper nouns may steer decoding. Feeding a broad
+    # commerce dictionary to Whisper causes unrelated words to be hallucinated
+    # and can exhaust its shared prompt/context budget. The built-in lexicon is
+    # intentionally reserved for conservative post-recognition correction.
+    selected = [str(term).strip() for term in extra_terms]
     return '，'.join(dict.fromkeys(term for term in selected if term))[:limit].rstrip('，')

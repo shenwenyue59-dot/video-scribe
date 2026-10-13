@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from opencc import OpenCC
 from transcript import extract_urls, to_csv, to_srt
-from titles import transcript_title, usable_title
+from titles import fallback_title, usable_title
 from correction import correct_segments
 
 ROOT = Path(__file__).resolve().parent
@@ -57,8 +57,12 @@ def simplify_job(job):
                 segment['text'] = converted
                 changed = True
     if job.get('status') == 'done' and job.get('url') and not usable_title(job.get('title')):
-        job['title'] = transcript_title(job.get('segments'))
-        job['title_source'] = '逐字稿内容生成'
+        job['title'] = fallback_title(job.get('segments'))
+        job['title_source'] = '自动生成（未读取到原视频标题）'
+        changed = True
+    elif job.get('title_source') == '逐字稿内容生成' and not str(job.get('title', '')).startswith('【自动生成】'):
+        job['title'] = '【自动生成】' + str(job.get('title') or '未命名逐字稿')
+        job['title_source'] = '自动生成（未读取到原视频标题）'
         changed = True
     if (job.get('status') == 'done' and job.get('smart_correct') and
             '本地语音识别' in job.get('source', '') and job.get('lexicon_version', 0) < 2):
@@ -96,7 +100,8 @@ for path in DATA.glob('*.json'):
         pass
 # Reuse an original platform title across repeated submissions of the same URL.
 known_titles = {item.get('url'): item.get('title') for item in JOBS.values()
-                if item.get('url') and usable_title(item.get('title')) and not item.get('title_source')}
+                if item.get('url') and usable_title(item.get('title')) and
+                item.get('title_source') in (None, '平台页面', '同链接历史记录')}
 for item in JOBS.values():
     known = known_titles.get(item.get('url'))
     if known and item.get('title') != known:
@@ -232,7 +237,8 @@ def create_job(title, url, language, model, mode, smart_correct=True):
     if url:
         with LOCK:
             previous = next((item.get('title') for item in JOBS.values()
-                             if item.get('url') == url and usable_title(item.get('title'))), None)
+                             if item.get('url') == url and usable_title(item.get('title')) and
+                             item.get('title_source') in (None, '平台页面', '同链接历史记录')), None)
         title = previous or title
     identifier = uuid.uuid4().hex
     directory = TEMP / identifier
