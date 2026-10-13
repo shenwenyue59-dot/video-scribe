@@ -6,7 +6,7 @@ import sys
 import traceback
 from transcript import parse_subtitles
 from browser_auth import add_browser_cookies, friendly_error
-from bridge_media import browser_media, download_media, is_browser_source
+from bridge_media import browser_media, browser_platform, download_media, is_browser_source
 from correction import correct_segments, whisper_hotwords
 from titles import transcript_title, usable_title
 
@@ -170,7 +170,8 @@ def process(config):
                          download_root=str(ROOT / '.models'))
     emit('status', message='正在识别语音')
     prompt = context_title[:48] if smart_correct and context_title else None
-    hotwords = whisper_hotwords('', glossary) if smart_correct else None
+    platform = browser_platform(config.get('url', '')) if config.get('url') else ''
+    hotwords = whisper_hotwords(context_title, glossary, platform) if smart_correct else None
     segments, info = model.transcribe(
         media, language=None if config['language'] == 'auto' else config['language'],
         beam_size=8 if smart_correct else 5, vad_filter=True,

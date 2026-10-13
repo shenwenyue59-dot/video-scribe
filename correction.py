@@ -1,6 +1,7 @@
 """Conservative Chinese ASR corrections using context and title vocabulary."""
 import re
 from pathlib import Path
+from functools import lru_cache
 
 from pypinyin import lazy_pinyin
 
@@ -23,11 +24,22 @@ COMMON_ASR_FIXES = (
     (r'一粒模型', '盈利模型'),
 )
 
-LEXICON_PATH = Path(__file__).resolve().parent / 'lexicons' / 'commerce_zh.txt'
+LEXICON_DIR = Path(__file__).resolve().parent / 'lexicons'
+
+
+@lru_cache(maxsize=1)
+def _built_in_terms():
+    terms = []
+    for path in sorted(LEXICON_DIR.glob('*_zh.txt')):
+        for term in path.read_text(encoding='utf-8').splitlines():
+            term = term.strip()
+            if term and term not in terms:
+                terms.append(term)
+    return tuple(terms)
 
 
 def commerce_terms(extra_terms=()):
-    terms = LEXICON_PATH.read_text(encoding='utf-8').splitlines() if LEXICON_PATH.is_file() else []
+    terms = list(_built_in_terms())
     for term in extra_terms:
         term = str(term).strip()
         if 1 < len(term) <= 24 and term not in terms:
@@ -75,10 +87,19 @@ def correct_segments(segments, title='', extra_terms=()):
     return [{**segment, 'text': correct_chinese_text(segment['text'], title, extra_terms)} for segment in segments]
 
 
-def whisper_hotwords(title='', extra_terms=(), limit=72):
+def whisper_hotwords(title='', extra_terms=(), platform='', limit=72):
     selected = list(extra_terms)
     selected.extend(re.findall(r'[\u4e00-\u9fff]{2,16}', title or ''))
-    selected.extend(commerce_terms())
+    terms = commerce_terms()
+    title_chars = set(re.sub(r'[^\u4e00-\u9fff]', '', title or ''))
+    if title_chars:
+        selected.extend(sorted(terms, key=lambda term: len(title_chars.intersection(term)), reverse=True)[:80])
+    platform_name = ('douyin_official_zh.txt' if platform == 'douyin' else
+                     'taobao_tmall_official_zh.txt' if platform in ('taobao', 'tmall') else '')
+    platform_file = LEXICON_DIR / platform_name if platform_name else None
+    if platform_file and platform_file.is_file():
+        selected.extend(platform_file.read_text(encoding='utf-8').splitlines())
+    selected.extend(terms)
     # faster-whisper shares a 448-token prompt budget between the previous
     # context, initial prompt and hotwords. Some Chinese characters expand to
     # several tokens, so keep a deliberately small character ceiling.

@@ -61,15 +61,15 @@ def simplify_job(job):
         job['title_source'] = '逐字稿内容生成'
         changed = True
     if (job.get('status') == 'done' and job.get('smart_correct') and
-            '本地语音识别' in job.get('source', '') and not job.get('lexicon_version')):
-        original = deepcopy(job.get('segments') or [])
+            '本地语音识别' in job.get('source', '') and job.get('lexicon_version', 0) < 2):
+        original = deepcopy(job.get('raw_segments') or job.get('segments') or [])
         corrected = correct_segments(original, job.get('title', ''))
         if corrected != original:
-            job['raw_segments'] = original
-            job['raw_text'] = '\n'.join(segment['text'] for segment in original)
+            job.setdefault('raw_segments', original)
+            job.setdefault('raw_text', '\n'.join(segment['text'] for segment in original))
             job['segments'] = corrected
             job['text'] = '\n'.join(segment['text'] for segment in corrected)
-        job['lexicon_version'] = 1
+        job['lexicon_version'] = 2
         changed = True
     return changed
 

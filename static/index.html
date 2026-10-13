@@ -28,7 +28,7 @@
             <details id="advanced"><summary>高级选项<span>处理方式与登录信息</span></summary>
               <label for="mode">链接处理方式</label><select id="mode"><option value="auto">自动：优先字幕，无字幕则识别语音</option><option value="captions">只读取平台字幕</option><option value="speech">始终识别语音</option></select>
               <p class="hint">抖音和小红书链接会自动通过 Kimi 浏览器扩展读取；小红书图文笔记会提取正文并识别配图文字。</p>
-              <label for="glossary">补充行业词或品牌词（可选）</label><textarea id="glossary" class="glossary" placeholder="每行一个，例如：&#10;超鸡魔王&#10;盈利模型&#10;门店翻牌"></textarea><p class="hint">应用已内置 440 个电商、门店、加盟、零售和餐饮运营词；这里可补充本批视频特有的品牌名。</p>
+              <label for="glossary">补充行业词或品牌词（可选）</label><textarea id="glossary" class="glossary" placeholder="每行一个，例如：&#10;超鸡魔王&#10;盈利模型&#10;门店翻牌"></textarea><p class="hint">应用已内置 1,000+ 个电商词，包含抖音电商、淘宝/天猫官方平台术语；这里可补充本批视频特有的品牌名。</p>
               <label for="browser">备用：直接读取本机浏览器 Cookies（可选）</label>
               <select id="browser"><option value="none">不使用浏览器登录状态</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="firefox">Firefox</option></select>
               <div id="browser-help" hidden><p class="hint">先在所选浏览器中打开并确认视频可以播放，再回来提交。Codex 内置浏览器的登录状态不能直接使用。部分浏览器加密或文件占用可能阻止读取。</p><label class="consent"><input id="browser-consent" type="checkbox"><span>同意本批任务在本机读取所选浏览器 Cookies，仅将对应平台的 Cookies 用于请求该平台，不保存到结果。</span></label></div>
