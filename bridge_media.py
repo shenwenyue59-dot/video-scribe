@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 import time
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
@@ -54,9 +55,32 @@ def validate_media_url(url, platform='douyin'):
     return url
 
 
+def _start_bridge_if_available():
+    """Start the local bridge after a connection failure, without restarting it."""
+    if os.name != 'nt':
+        return False
+    executable = Path.home() / '.kimi-webbridge' / 'bin' / 'kimi-webbridge.exe'
+    if not executable.is_file():
+        return False
+    creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+    try:
+        result = subprocess.run(
+            [str(executable), 'start'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+            creationflags=creationflags,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def command(action, args, timeout=35):
     payload = json.dumps({'action': action, 'args': args, 'session': SESSION}, ensure_ascii=False).encode('utf-8')
     last_error = '未知错误'
+    start_attempted = False
     for attempt in range(6):
         request = Request(BRIDGE_URL, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
         try:
@@ -67,6 +91,9 @@ def command(action, args, timeout=35):
             last_error = (envelope.get('error') or {}).get('message') or '未知错误'
         except Exception as exc:
             last_error = str(exc)
+            if not start_attempted:
+                start_attempted = True
+                _start_bridge_if_available()
         if attempt < 5:
             time.sleep(1)
     raise RuntimeError(f'BRIDGE_UNAVAILABLE: Kimi 浏览器扩展未就绪：{last_error}')
