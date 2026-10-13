@@ -41,6 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 
 ## 维护与开发
 
+应用默认只允许本机访问。临时公网发布使用 Cloudflare Quick Tunnel 时，应设置随机 `SCRIBE_PUBLIC_TOKEN`；外部访问者必须先用带 `?access=` 的完整链接建立安全会话。公网地址依赖这台电脑上的应用、Kimi 浏览器扩展和隧道持续运行，电脑休眠或关闭任一进程后地址会失效。
+
 重新运行 `setup.ps1` 可补齐依赖。站点规则变化时可更新提取器：
 
 ```powershell

@@ -44,6 +44,14 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/health').json()['app'], 'video-scribe')
         self.assertIn('逐字', self.client.get('/').text)
 
+    def test_public_tunnel_requires_access_token(self):
+        public = TestClient(app.app, base_url='https://demo.trycloudflare.com')
+        with patch.object(app, 'PUBLIC_TOKEN', 'secret-token'):
+            self.assertEqual(public.get('/', follow_redirects=False).status_code, 401)
+            unlocked = public.get('/?access=secret-token')
+            self.assertEqual(unlocked.status_code, 200)
+            self.assertIn('逐字', unlocked.text)
+
     def test_bad_inputs_and_origin(self):
         for link in ['no link', 'http://127.0.0.1/test', 'https://www.douyin.com:bad/video/1', 'https://douyin.com.evil.test/a']:
             self.assertEqual(self.client.post('/api/links', data={'links':link}).status_code, 400)

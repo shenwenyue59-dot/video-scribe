@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -18,7 +19,7 @@ import uuid
 import zipfile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from transcript import extract_urls, to_csv, to_srt
@@ -31,6 +32,7 @@ LOCK = threading.RLock()
 POOL = ThreadPoolExecutor(max_workers=1)
 PROCESSES = {}
 TERMINAL = {'done', 'error', 'cancelled'}
+PUBLIC_TOKEN = os.environ.get('SCRIBE_PUBLIC_TOKEN', '')
 ALLOWED = ('douyin.com', 'xiaohongshu.com', 'xhslink.com', 'bilibili.com', 'b23.tv', 'youtube.com', 'youtu.be', 'tiktok.com', 'vimeo.com')
 
 
@@ -72,11 +74,25 @@ async def lifespan(app):
 
 
 app = FastAPI(title='逐字 · Video Scribe', lifespan=lifespan)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost', 'testserver'])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost', 'testserver', '*.trycloudflare.com'])
 
 
 @app.middleware('http')
 async def same_origin(request: Request, call_next):
+    public_host = (request.url.hostname or '').endswith('.trycloudflare.com')
+    if public_host:
+        query_token = request.query_params.get('access', '')
+        cookie_token = request.cookies.get('video_scribe_access', '')
+        valid_query = bool(PUBLIC_TOKEN and secrets.compare_digest(query_token, PUBLIC_TOKEN))
+        valid_cookie = bool(PUBLIC_TOKEN and secrets.compare_digest(cookie_token, PUBLIC_TOKEN))
+        if valid_query and request.method in ('GET', 'HEAD'):
+            response = RedirectResponse(request.url.path or '/', status_code=302)
+            response.set_cookie('video_scribe_access', PUBLIC_TOKEN, secure=True, httponly=True,
+                                samesite='strict', max_age=86400)
+            response.headers['Referrer-Policy'] = 'no-referrer'
+            return response
+        if not valid_cookie:
+            return JSONResponse({'detail': '访问链接无效或已经过期。'}, status_code=401)
     if request.method not in ('GET', 'HEAD', 'OPTIONS'):
         origin = request.headers.get('origin')
         if origin and origin != str(request.base_url).rstrip('/'):
@@ -86,6 +102,7 @@ async def same_origin(request: Request, call_next):
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Cache-Control'] = 'no-store'
+    response.headers['Referrer-Policy'] = 'no-referrer'
     return response
 
 
