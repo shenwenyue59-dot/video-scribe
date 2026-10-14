@@ -32,6 +32,8 @@ class TranscriptTests(unittest.TestCase):
         self.assertGreaterEqual(len(commerce_terms()), 1000)
         self.assertIn('巨量千川', commerce_terms())
         self.assertIn('万相台AI无界', commerce_terms())
+        self.assertIn('质感天花板', commerce_terms())
+        self.assertIn('上身无压力', commerce_terms())
 
     def test_transcript_fallback_title(self):
         from titles import fallback_title, transcript_title, usable_title
