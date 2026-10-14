@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
 </head>
 <body>
-  <header><a class="brand" href="/"><span class="brand-icon">逐</span><span>逐字<small>VIDEO SCRIBE</small></span></a><span class="local"><i></i> 本机运行 · 无需 API 密钥</span></header>
+  <header><a class="brand" href="/"><span class="brand-icon">逐</span><span>逐字<small>VIDEO SCRIBE</small></span></a><div class="app-nav"><a class="active" href="/">逐字稿</a><a href="/lab/">爆文拆解</a><span class="local"><i></i> 本机运行 · 无需 API 密钥</span></div></header>
   <main>
     <section class="intro"><div class="eyebrow">让值得留下的话，成为文字</div><h1>从一个链接，<br class="mobile">到一篇逐字稿<span>。</span></h1><p>读取视频字幕，或在本地识别人声。保留原话，也保留每一句的时间。</p></section>
     <div class="workspace">
@@ -47,7 +47,7 @@
         <div id="job-list" aria-label="任务列表"></div>
         <div id="reader" hidden>
           <div class="reader-header"><div><span id="source" class="source"></span><h3 id="reader-title"></h3><p id="reader-meta"></p></div><a id="original" target="_blank" rel="noopener noreferrer">原视频 ↗</a></div>
-          <div class="reader-toolbar"><div class="view-switch"><button id="plain-view" class="active">原文</button><button id="timed-view">时间轴</button></div><div><button id="copy">复制</button><button id="txt">TXT ↓</button><button id="srt">SRT ↓</button><button id="csv">表格 CSV ↓</button></div></div>
+          <div class="reader-toolbar"><div class="view-switch"><button id="plain-view" class="active">原文</button><button id="timed-view">时间轴</button></div><div><a id="analyze" class="analyze-link" href="/lab/">发送到爆文拆解 →</a><button id="copy">复制</button><button id="txt">TXT ↓</button><button id="srt">SRT ↓</button><button id="csv">表格 CSV ↓</button></div></div>
           <div id="transcript" tabindex="0"></div><p class="verification">自动字幕和语音识别可能有误，发布前请对照原视频校对。</p>
         </div>
       </section>

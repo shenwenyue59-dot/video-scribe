@@ -114,6 +114,7 @@ async function loadReader() {
   $('reader').hidden = false; $('reader-title').textContent = current.title; $('source').textContent = current.source;
   $('reader-meta').textContent = `${current.language} · ${current.segments.length} 段 · ${current.text.length} 字符${current.duration ? ` · ${Math.round(current.duration)} 秒` : ''}`;
   $('original').hidden = !current.url; if (current.url) $('original').href = current.url;
+  $('analyze').href = `/lab/?job=${encodeURIComponent(current.id)}`;
   if (changed) renderTranscript();
 }
 function clock(seconds) { const whole = Math.floor(seconds); return `${String(Math.floor(whole/3600)).padStart(2,'0')}:${String(Math.floor(whole%3600/60)).padStart(2,'0')}:${String(whole%60).padStart(2,'0')}`; }

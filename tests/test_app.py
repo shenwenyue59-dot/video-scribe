@@ -66,6 +66,9 @@ class ApiTests(unittest.TestCase):
     def test_health_and_page(self):
         self.assertEqual(self.client.get('/api/health').json()['app'], 'video-scribe')
         self.assertIn('逐字', self.client.get('/').text)
+        self.assertIn('发送到爆文拆解', self.client.get('/').text)
+        self.assertIn('蓝胖子 · 内容实验室', self.client.get('/lab/').text)
+        self.assertIn('逐字稿已导入', self.client.get('/lab/scribe-integration.js').text)
 
     def test_public_tunnel_requires_access_token(self):
         public = TestClient(app.app, base_url='https://demo.trycloudflare.com')
