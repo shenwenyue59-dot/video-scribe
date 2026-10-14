@@ -47,13 +47,14 @@
         <div id="job-list" aria-label="任务列表"></div>
         <div id="reader" hidden>
           <div class="reader-header"><div><span id="source" class="source"></span><h3 id="reader-title"></h3><p id="reader-meta"></p></div><a id="original" target="_blank" rel="noopener noreferrer">原视频 ↗</a></div>
-          <div class="reader-toolbar"><div class="view-switch"><button id="plain-view" class="active">原文</button><button id="timed-view">时间轴</button></div><div><a id="analyze" class="analyze-link" href="/lab/">发送到爆文拆解 →</a><button id="copy">复制</button><button id="txt">TXT ↓</button><button id="srt">SRT ↓</button><button id="csv">表格 CSV ↓</button></div></div>
+          <div class="reader-toolbar"><div class="view-switch"><button id="plain-view" class="active">原文</button><button id="timed-view">时间轴</button></div><div><a id="analyze" class="analyze-link" href="/lab/">发送到爆文拆解 →</a><button id="edit-text">编辑纠错</button><button id="copy">复制</button><button id="txt">TXT ↓</button><button id="srt">SRT ↓</button><button id="csv">表格 CSV ↓</button></div></div>
           <div id="transcript" tabindex="0"></div><p class="verification">自动字幕和语音识别可能有误，发布前请对照原视频校对。</p>
         </div>
       </section>
     </div>
     <footer><span>逐字 · 让内容可回看、可检索、可整理</span><span id="connection">正在连接本机服务…</span></footer>
   </main>
+  <dialog id="edit-dialog"><form method="dialog"><div class="dialog-head"><h3>人工校正逐字稿</h3><button value="cancel" aria-label="关闭">×</button></div><p>每行对应一个时间段。可以修改文字，但请不要增加或删除行。</p><textarea id="edit-content" spellcheck="true"></textarea><label class="remember"><input id="remember-corrections" type="checkbox" checked> 记住本次修改；以后遇到完全相同的错句时自动替换（只保存在本机）</label><div class="dialog-actions"><button value="cancel">取消</button><button id="save-text" value="default" type="button">保存校正</button></div><p id="edit-message" class="message"></p></form></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

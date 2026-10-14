@@ -25,7 +25,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from opencc import OpenCC
 from transcript import extract_urls, to_csv, to_srt
 from titles import fallback_title, usable_title
-from correction import correct_segments
+from correction import correct_segments, remember_corrections
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('SCRIBE_DATA_DIR', str(ROOT / '.data'))).resolve()
@@ -276,6 +276,40 @@ def detail(identifier: str):
         if identifier not in JOBS:
             raise HTTPException(404, '任务不存在')
         return deepcopy(JOBS[identifier])
+
+
+@app.put('/api/jobs/{identifier}/text')
+async def edit_transcript(identifier: str, request: Request):
+    try:
+        payload = await request.json()
+    except ValueError:
+        raise HTTPException(400, '修改内容格式无效')
+    text = payload.get('text') if isinstance(payload, dict) else None
+    remember = bool(payload.get('remember')) if isinstance(payload, dict) else False
+    if not isinstance(text, str) or not text.strip() or len(text) > 100000:
+        raise HTTPException(400, '逐字稿内容为空或过长')
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    with LOCK:
+        job = JOBS.get(identifier)
+        if not job:
+            raise HTTPException(404, '任务不存在')
+        if job.get('status') != 'done':
+            raise HTTPException(409, '任务尚未完成')
+        segments = job.get('segments') or []
+        if len(lines) != len(segments):
+            raise HTTPException(400, f'请保留原有的 {len(segments)} 行，每行对应一个时间段')
+        pairs = [(segment.get('text', ''), line) for segment, line in zip(segments, lines)
+                 if segment.get('text', '').strip() != line]
+        if remember and pairs:
+            remember_corrections(pairs)
+        job.setdefault('raw_segments', deepcopy(segments))
+        job.setdefault('raw_text', job.get('text', ''))
+        for segment, line in zip(segments, lines):
+            segment['text'] = line
+        job['text'] = '\n'.join(lines)
+        job['manually_corrected'] = True
+        save(job)
+        return {'ok': True, 'changed': len(pairs), 'remembered': bool(remember and pairs)}
 
 
 @app.post('/api/links')

@@ -16,13 +16,16 @@ from transcript import extract_urls, parse_subtitles, timestamp, to_srt
 
 class TranscriptTests(unittest.TestCase):
     def test_contextual_chinese_correction(self):
-        from correction import commerce_terms, correct_chinese_text, whisper_hotwords
+        from correction import commerce_terms, correct_chinese_text, remember_corrections, whisper_hotwords
         title = '超鸡魔王火锅鸡加盟'
         self.assertEqual(correct_chinese_text('火锅机加盟品牌', title), '火锅鸡加盟品牌')
         self.assertEqual(correct_chinese_text('你没惊艳总部派人', title), '你没经验总部派人')
         self.assertEqual(correct_chinese_text('你不需要重新养电'), '你不需要重新养店')
         self.assertEqual(correct_chinese_text('你不是把电翻个招牌，是把电翻了一套一粒模型'),
                          '你不是把店翻个招牌，是把店翻了一套盈利模型')
+        self.assertEqual(correct_chinese_text('点铺'), '点铺')
+        remember_corrections([('课单上完全不在一个量级', '客单价完全不在一个量级')])
+        self.assertEqual(correct_chinese_text('课单上完全不在一个量级'), '客单价完全不在一个量级')
         self.assertLessEqual(len(whisper_hotwords('', ['品牌专有词'] * 300)), 72)
         self.assertEqual(whisper_hotwords('抖音商城', (), 'douyin'), '')
         self.assertEqual(whisper_hotwords('', ['超鸡魔王'], 'douyin'), '超鸡魔王')
@@ -126,6 +129,19 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(Path(config['media']).read_bytes(), b'RIFFtest')
         self.assertEqual(config['mode'], 'speech')
         self.assertTrue(config['smart_correct'])
+
+    def test_manual_transcript_correction_can_be_remembered(self):
+        with patch.object(app.POOL, 'submit'):
+            identifier = self.client.post('/api/links', data={'links':'https://youtu.be/edit'}).json()['ids'][0]
+        app.update(identifier, status='done', text='课单上\n以类结构',
+                   segments=[{'start':0,'end':1,'text':'课单上'}, {'start':1,'end':2,'text':'以类结构'}])
+        response = self.client.put(f'/api/jobs/{identifier}/text',
+                                   json={'text':'客单价\n品类结构', 'remember':True})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['changed'], 2)
+        detail = self.client.get(f'/api/jobs/{identifier}').json()
+        self.assertEqual(detail['text'], '客单价\n品类结构')
+        self.assertTrue(detail['manually_corrected'])
 
     def test_bulk_delete_terminal_jobs(self):
         with patch.object(app.POOL, 'submit'):

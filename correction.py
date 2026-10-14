@@ -1,5 +1,7 @@
 """Conservative Chinese ASR corrections using context and title vocabulary."""
 import re
+import json
+import os
 from pathlib import Path
 from functools import lru_cache
 
@@ -25,6 +27,27 @@ COMMON_ASR_FIXES = (
 )
 
 LEXICON_DIR = Path(__file__).resolve().parent / 'lexicons'
+USER_CORRECTIONS_FILE = Path(os.environ.get('SCRIBE_DATA_DIR', Path(__file__).resolve().parent / '.data')) / 'corrections.json'
+
+
+def user_corrections():
+    try:
+        data = json.loads(USER_CORRECTIONS_FILE.read_text(encoding='utf-8'))
+        return {str(k): str(v) for k, v in data.items()
+                if isinstance(k, str) and isinstance(v, str) and k and v and len(k) <= 200 and len(v) <= 200}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def remember_corrections(pairs):
+    saved = user_corrections()
+    for original, replacement in pairs:
+        original, replacement = str(original).strip(), str(replacement).strip()
+        if original and replacement and original != replacement and len(original) <= 200 and len(replacement) <= 200:
+            saved[original] = replacement
+    USER_CORRECTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    USER_CORRECTIONS_FILE.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding='utf-8')
+    return len(saved)
 
 
 @lru_cache(maxsize=1)
@@ -60,15 +83,23 @@ def _title_vocabulary(title):
 
 
 def _lexicon_vocabulary(extra_terms=()):
-    vocabulary = {}
-    for word in commerce_terms(extra_terms):
+    vocabulary, candidates = {}, {}
+    # Two-character homophones are too ambiguous without a language model.
+    # Reserve them for explicit user terms; use longer built-in terms only
+    # when their pronunciation maps to exactly one dictionary entry.
+    for word in commerce_terms():
+        if 3 <= len(word) <= 8:
+            key = (len(word), tuple(lazy_pinyin(word)))
+            candidates.setdefault(key, set()).add(word)
+    vocabulary.update({key: next(iter(words)) for key, words in candidates.items() if len(words) == 1})
+    for word in extra_terms:
         if 2 <= len(word) <= 8:
-            vocabulary.setdefault((len(word), tuple(lazy_pinyin(word))), word)
+            vocabulary[(len(word), tuple(lazy_pinyin(word)))] = word
     return vocabulary
 
 
 def correct_chinese_text(text, title='', extra_terms=()):
-    corrected = text
+    corrected = user_corrections().get(text.strip(), text)
     for pattern, replacement in COMMON_ASR_FIXES:
         corrected = re.sub(pattern, replacement, corrected)
     vocabulary = _lexicon_vocabulary(extra_terms)
