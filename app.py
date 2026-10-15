@@ -130,12 +130,14 @@ async def lifespan(app):
 
 
 app = FastAPI(title='逐字 · Video Scribe', lifespan=lifespan)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost', 'testserver', '*.trycloudflare.com'])
+PUBLIC_HOST_SUFFIXES = ('.trycloudflare.com', '.ngrok-free.dev')
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
+    '127.0.0.1', 'localhost', 'testserver', '*.trycloudflare.com', '*.ngrok-free.dev'])
 
 
 @app.middleware('http')
 async def same_origin(request: Request, call_next):
-    public_host = (request.url.hostname or '').endswith('.trycloudflare.com')
+    public_host = (request.url.hostname or '').endswith(PUBLIC_HOST_SUFFIXES)
     if public_host and PUBLIC_TOKEN:
         query_token = request.query_params.get('access', '')
         cookie_token = request.cookies.get('video_scribe_access', '')
