@@ -15,7 +15,19 @@ try {
     $tunnelRunning = [bool]($tunnels.tunnels | Where-Object public_url -eq $domain)
 } catch {}
 
+if ($tunnelRunning) {
+    try {
+        $health = Invoke-RestMethod -Uri "$domain/api/health" -Headers @{'ngrok-skip-browser-warning' = '1'} -TimeoutSec 8
+        $tunnelRunning = $health.status -eq 'ok'
+    } catch {
+        $tunnelRunning = $false
+    }
+}
+
 if (-not $tunnelRunning) {
+    Get-Process -Name ngrok -ErrorAction SilentlyContinue |
+        Where-Object {$_.Path -eq $ngrok} |
+        Stop-Process -Force
     $env:HTTP_PROXY = ''
     $env:HTTPS_PROXY = ''
     $env:ALL_PROXY = ''
