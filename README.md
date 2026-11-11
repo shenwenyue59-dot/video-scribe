@@ -2,6 +2,12 @@
 
 在这台 Windows 电脑上运行的网页应用。粘贴视频链接，优先读取平台字幕；没有字幕时下载音频并使用 faster-whisper 在本机转写。也可以上传视频或音频。
 
+## 分享与下载
+
+- [在线使用](https://swoop-manila-manicure.ngrok-free.dev/)：服务运行在维护者的 Windows 电脑上，电脑开机联网时可访问。
+- [下载 Windows 本地版](https://github.com/shenwenyue59-dot/video-scribe/archive/refs/heads/main.zip)：解压后双击 `start.cmd`，使用下载者自己的电脑完成识别和存储。
+- [查看 GitHub 仓库](https://github.com/shenwenyue59-dot/video-scribe)
+
 ## 打开应用
 
 双击 **start.cmd**，等待浏览器自动打开 `http://127.0.0.1:8765`。运行期间保留启动窗口；关闭窗口会停止服务。再次启动可以查看历史逐字稿。
