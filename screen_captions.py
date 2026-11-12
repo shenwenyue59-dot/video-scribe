@@ -36,7 +36,7 @@ def select_caption_lines(items, frame_width, frame_height, crop_top=0):
             continue
         if not (frame_width * 0.08 <= center_x <= frame_width * 0.92):
             continue
-        if not (frame_height * 0.34 <= center_y <= frame_height * 0.91):
+        if not (frame_height * 0.10 <= center_y <= frame_height * 0.91):
             continue
         if width < frame_width * 0.10 and chinese_count < 4:
             continue
@@ -105,10 +105,10 @@ def captions_are_usable(segments):
     bottom_chars = sum(len(CHINESE.findall(item.get('text', ''))) for item in bottom)
     if len(bottom) >= 3 and bottom_chars >= 20:
         return True
-    # Some creators place their dialogue captions higher than the usual lower
-    # third. Keep the older overall-coverage fallback for those layouts.
+    # Short lifestyle/product videos may communicate entirely through a few
+    # changing on-screen phrases and contain no spoken dialogue at all.
     all_chars = sum(len(CHINESE.findall(item.get('text', ''))) for item in segments)
-    return len(segments) >= 6 and all_chars >= 60
+    return len(segments) >= 3 and all_chars >= 12
 
 
 def extract_screen_captions(media, progress=None, sample_interval=0.75):
@@ -123,7 +123,9 @@ def extract_screen_captions(media, progress=None, sample_interval=0.75):
         container.close()
         return []
     frame_width, frame_height = stream.width, stream.height
-    crop_top, crop_bottom = int(frame_height * 0.32), int(frame_height * 0.92)
+    # Scan almost the full clean video frame. Xiaohongshu commonly places its
+    # main explanatory text in the upper third rather than at the bottom.
+    crop_top, crop_bottom = int(frame_height * 0.08), int(frame_height * 0.92)
     ocr = RapidOCR()
     observations, next_sample, last_progress = [], 0.0, -10
     try:

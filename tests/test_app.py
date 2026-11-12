@@ -31,9 +31,10 @@ class TranscriptTests(unittest.TestCase):
         ], 0.75)
         self.assertEqual([item['text'] for item in merged], ['没有擦任何东西啊', '一瓶顶三瓶的救星'])
         bottom = [{'text': f'【底部字幕】这是第{i}句对白内容', 'caption_type': '底部字幕'} for i in range(3)]
-        flowers = [{'text': '【画面花字】限时好价', 'caption_type': '画面花字'} for _ in range(3)]
+        flowers = [{'text': f'【画面花字】步骤{i}涂抹', 'caption_type': '画面花字'} for i in range(3)]
         self.assertTrue(captions_are_usable(bottom))
-        self.assertFalse(captions_are_usable(flowers))
+        self.assertTrue(captions_are_usable(flowers))
+        self.assertFalse(captions_are_usable(flowers[:2]))
 
     def test_contextual_chinese_correction(self):
         from correction import commerce_terms, correct_chinese_text, remember_corrections, whisper_hotwords
