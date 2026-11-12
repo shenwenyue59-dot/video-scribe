@@ -27,7 +27,7 @@
             <label class="consent correction"><input id="smart-correct" type="checkbox" checked><span><strong>智能校正逐字稿</strong><br>结合视频标题和前后语境识别同音词、品牌名与专有词；中文会自动使用精细模型，处理时间稍长。</span></label>
             <details id="advanced"><summary>高级选项<span>处理方式与登录信息</span></summary>
               <label for="mode">链接处理方式</label><select id="mode"><option value="auto">自动：平台字幕 → 画面字幕 → 语音</option><option value="captions">只识别字幕（平台或画面）</option><option value="speech">始终识别语音</option></select>
-              <p class="hint">抖音和小红书链接会自动通过 Kimi 浏览器扩展读取；小红书图文笔记会提取正文并识别配图文字。</p>
+              <p class="hint">自动模式检测到足够的底部字幕后会直接生成，不再识别语音；没有字幕或只有零散花字时才识别语音。抖音和小红书链接会自动通过 Kimi 浏览器扩展读取。</p>
               <label for="glossary">补充行业词或品牌词（可选）</label><textarea id="glossary" class="glossary" placeholder="每行一个，例如：&#10;超鸡魔王&#10;盈利模型&#10;门店翻牌"></textarea><p class="hint">应用已内置 1,000+ 个电商词，包含抖音电商、淘宝/天猫官方平台术语；这里可补充本批视频特有的品牌名。</p>
               <label for="browser">备用：直接读取本机浏览器 Cookies（可选）</label>
               <select id="browser"><option value="none">不使用浏览器登录状态</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="firefox">Firefox</option></select>

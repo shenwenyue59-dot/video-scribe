@@ -99,6 +99,18 @@ def merge_observations(observations, sample_interval):
     return result
 
 
+def captions_are_usable(segments):
+    """Prefer real dialogue subtitles; decorative copy alone is not a transcript."""
+    bottom = [item for item in segments if '底部字幕' in item.get('caption_type', '')]
+    bottom_chars = sum(len(CHINESE.findall(item.get('text', ''))) for item in bottom)
+    if len(bottom) >= 3 and bottom_chars >= 20:
+        return True
+    # Some creators place their dialogue captions higher than the usual lower
+    # third. Keep the older overall-coverage fallback for those layouts.
+    all_chars = sum(len(CHINESE.findall(item.get('text', ''))) for item in segments)
+    return len(segments) >= 6 and all_chars >= 60
+
+
 def extract_screen_captions(media, progress=None, sample_interval=0.75):
     """Return OCR caption segments, or an empty list when coverage is insufficient."""
     import av
@@ -130,8 +142,9 @@ def extract_screen_captions(media, progress=None, sample_interval=0.75):
     finally:
         container.close()
     segments = merge_observations(observations, sample_interval)
-    chinese_chars = sum(len(CHINESE.findall(item['text'])) for item in segments)
-    # Require enough changing text to distinguish spoken captions from a fixed watermark.
-    if len(segments) < 6 or chinese_chars < 60:
+    # A few changing bottom lines are enough to avoid a redundant speech pass.
+    # Decorative text alone still needs broad coverage before it can represent
+    # the video's spoken content.
+    if not captions_are_usable(segments):
         return []
     return segments
