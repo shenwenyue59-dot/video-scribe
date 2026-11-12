@@ -8,6 +8,7 @@ from transcript import parse_subtitles
 from browser_auth import add_browser_cookies, friendly_error
 from bridge_media import browser_media, download_media, is_browser_source
 from correction import correct_segments, whisper_hotwords
+from screen_captions import extract_screen_captions
 from titles import fallback_title, usable_title
 
 ROOT = Path(__file__).resolve().parent
@@ -72,7 +73,17 @@ def process(config):
                 emit('status', message='已取得播放器地址，正在下载视频')
                 download_media(browser['src'], media, browser.get('pageUrl') or config['url'],
                                browser.get('platform', 'douyin'))
-                emit('status', message='视频下载完成，准备识别语音')
+                if config['mode'] != 'speech':
+                    emit('status', message='平台没有可用字幕，正在识别画面中文字幕')
+                    def ocr_progress(current, total):
+                        emit('status', message=f'正在识别画面字幕 · {int(current)} / {int(total)} 秒')
+                    captions = extract_screen_captions(media, ocr_progress)
+                    if captions:
+                        emit('result', segments=captions, source='画面字幕 OCR', language='zh')
+                        return
+                    if config['mode'] == 'captions':
+                        raise RuntimeError('没有读取到平台字幕或足够的画面字幕。请选择“自动”或“语音识别”重新提交。')
+                emit('status', message='没有足够的画面字幕，准备识别语音')
             else:
                 emit('status', message='正在读取帖子正文和配图')
                 result = []

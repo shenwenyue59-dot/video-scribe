@@ -1,0 +1,121 @@
+"""Extract large burned-in Chinese captions from video frames with local OCR."""
+from difflib import SequenceMatcher
+import re
+
+
+CHINESE = re.compile(r'[\u4e00-\u9fff]')
+SPACE = re.compile(r'\s+')
+
+
+def _clean(text):
+    return SPACE.sub('', str(text or '')).strip('丨|_—-~·•')
+
+
+def _same_caption(left, right):
+    left, right = _clean(left), _clean(right)
+    if not left or not right:
+        return False
+    if left == right or (min(len(left), len(right)) >= 4 and (left in right or right in left)):
+        return True
+    return SequenceMatcher(None, left, right).ratio() >= 0.82
+
+
+def select_caption_lines(items, frame_width, frame_height, crop_top=0):
+    """Keep large, central Chinese text while dropping logos and small UI labels."""
+    selected = []
+    for box, text, score in items or []:
+        text = _clean(text)
+        chinese_count = len(CHINESE.findall(text))
+        if float(score) < 0.72 or chinese_count < 2:
+            continue
+        xs = [float(point[0]) for point in box]
+        ys = [float(point[1]) + crop_top for point in box]
+        width, height = max(xs) - min(xs), max(ys) - min(ys)
+        center_x, center_y = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        if height < max(22, frame_height * 0.025):
+            continue
+        if not (frame_width * 0.08 <= center_x <= frame_width * 0.92):
+            continue
+        if not (frame_height * 0.34 <= center_y <= frame_height * 0.91):
+            continue
+        if width < frame_width * 0.10 and chinese_count < 4:
+            continue
+        selected.append((min(ys), min(xs), text, float(score)))
+    selected.sort()
+    if not selected:
+        return '', 0.0
+    text = ''.join(item[2] for item in selected)
+    return text, sum(item[3] for item in selected) / len(selected)
+
+
+def merge_observations(observations, sample_interval):
+    segments = []
+    current = None
+    for timestamp, text, confidence in observations:
+        text = _clean(text)
+        if not text:
+            if current and timestamp - current['last_seen'] > sample_interval * 1.6:
+                current['end'] = min(timestamp, current['last_seen'] + sample_interval)
+                segments.append(current)
+                current = None
+            continue
+        if current and _same_caption(current['text'], text):
+            current['last_seen'] = timestamp
+            current['end'] = timestamp + sample_interval
+            current['samples'] += 1
+            if confidence > current['confidence'] or len(text) > len(current['text']):
+                current['text'], current['confidence'] = text, confidence
+            continue
+        if current:
+            current['end'] = min(timestamp, current['last_seen'] + sample_interval)
+            segments.append(current)
+        current = {'start': timestamp, 'end': timestamp + sample_interval, 'last_seen': timestamp,
+                   'text': text, 'confidence': confidence, 'samples': 1}
+    if current:
+        segments.append(current)
+    result = []
+    for item in segments:
+        text = item['text']
+        # A single two-character observation is commonly a logo or transient UI label.
+        if len(CHINESE.findall(text)) <= 2 and item['samples'] == 1:
+            continue
+        result.append({'start': round(item['start'], 3), 'end': round(item['end'], 3), 'text': text})
+    return result
+
+
+def extract_screen_captions(media, progress=None, sample_interval=0.75):
+    """Return OCR caption segments, or an empty list when coverage is insufficient."""
+    import av
+    from rapidocr_onnxruntime import RapidOCR
+
+    container = av.open(str(media))
+    stream = container.streams.video[0]
+    duration = float(container.duration / 1_000_000) if container.duration else 0.0
+    if not duration or duration > 1800:
+        container.close()
+        return []
+    frame_width, frame_height = stream.width, stream.height
+    crop_top, crop_bottom = int(frame_height * 0.32), int(frame_height * 0.92)
+    ocr = RapidOCR()
+    observations, next_sample, last_progress = [], 0.0, -10
+    try:
+        for frame in container.decode(video=0):
+            timestamp = float(frame.time or 0)
+            if timestamp + 0.001 < next_sample:
+                continue
+            next_sample = timestamp + sample_interval
+            image = frame.to_ndarray(format='bgr24')[crop_top:crop_bottom, :]
+            items, _ = ocr(image)
+            text, confidence = select_caption_lines(items, frame_width, frame_height, crop_top)
+            observations.append((timestamp, text, confidence))
+            if progress and timestamp - last_progress >= 5:
+                last_progress = timestamp
+                progress(timestamp, duration)
+    finally:
+        container.close()
+    segments = merge_observations(observations, sample_interval)
+    chinese_chars = sum(len(CHINESE.findall(item['text'])) for item in segments)
+    # Require enough changing text to distinguish spoken captions from a fixed watermark.
+    if len(segments) < 6 or chinese_chars < 60:
+        return []
+    return segments

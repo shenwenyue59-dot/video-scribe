@@ -15,6 +15,19 @@ from transcript import extract_urls, parse_subtitles, timestamp, to_srt
 
 
 class TranscriptTests(unittest.TestCase):
+    def test_screen_caption_filter_and_merge(self):
+        from screen_captions import merge_observations, select_caption_lines
+        large_caption = ([[60, 420], [510, 420], [510, 490], [60, 490]], '继续整强度！！', 0.98)
+        small_ui = ([[10, 20], [90, 20], [90, 35], [10, 35]], '紫外线', 0.99)
+        text, _ = select_caption_lines([small_ui, large_caption], 576, 1024)
+        self.assertEqual(text, '继续整强度！！')
+        merged = merge_observations([
+            (1.0, '没有擦任何东西啊', 0.91),
+            (1.75, '没有擦任何东西啊', 0.97),
+            (2.5, '一瓶顶三瓶的救星', 0.96),
+        ], 0.75)
+        self.assertEqual([item['text'] for item in merged], ['没有擦任何东西啊', '一瓶顶三瓶的救星'])
+
     def test_contextual_chinese_correction(self):
         from correction import commerce_terms, correct_chinese_text, remember_corrections, whisper_hotwords
         title = '超鸡魔王火锅鸡加盟'
