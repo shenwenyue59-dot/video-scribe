@@ -489,26 +489,28 @@ def workbook_bytes(jobs):
         sheet.hide_gridlines(2)
         sheet.set_column('A:A', 9)
         sheet.set_column('B:C', 15)
-        sheet.set_column('D:D', 80)
-        sheet.merge_range('A1:D1', job['title'], title_format)
+        sheet.set_column('D:D', 16)
+        sheet.set_column('E:E', 80)
+        sheet.merge_range('A1:E1', job['title'], title_format)
         metadata = [('视频标题', job['title']), ('视频链接', job.get('url', '')), ('内容来源', job.get('source', ''))]
         for row, (label, value) in enumerate(metadata, 1):
             sheet.write(row, 0, label, label_format)
             if label == '视频链接' and value:
                 sheet.write_url(row, 1, value, cell_format, value)
             else:
-                sheet.merge_range(row, 1, row, 3, value, cell_format)
+                sheet.merge_range(row, 1, row, 4, value, cell_format)
         header_row = 5
-        for column, heading in enumerate(('序号', '开始时间', '结束时间', '逐字内容')):
+        for column, heading in enumerate(('序号', '开始时间', '结束时间', '字幕类型', '逐字内容')):
             sheet.write(header_row, column, heading, header_format)
         for offset, segment in enumerate(job['segments'], 1):
             row = header_row + offset
             sheet.write_number(row, 0, offset, time_format)
             sheet.write(row, 1, f"{segment['start']:.3f}", time_format)
             sheet.write(row, 2, f"{segment['end']:.3f}", time_format)
-            sheet.write(row, 3, segment['text'], cell_format)
+            sheet.write(row, 3, segment.get('caption_type', ''), cell_format)
+            sheet.write(row, 4, segment['text'], cell_format)
         last_row = max(header_row + 1, header_row + len(job['segments']))
-        sheet.autofilter(header_row, 0, last_row, 3)
+        sheet.autofilter(header_row, 0, last_row, 4)
         sheet.freeze_panes(header_row + 1, 1)
     workbook.close()
     return output.getvalue()

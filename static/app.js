@@ -122,7 +122,7 @@ function renderTranscript() {
   if (!current) return;
   $('plain-view').classList.toggle('active',view==='plain'); $('timed-view').classList.toggle('active',view==='timed');
   if (view==='plain') $('transcript').textContent=current.text;
-  else { $('transcript').replaceChildren(); for(const segment of current.segments) { const row=element('div','segment'); row.append(element('time','',clock(segment.start)),element('p','',segment.text)); $('transcript').append(row); } }
+  else { $('transcript').replaceChildren(); for(const segment of current.segments) { const row=element('div','segment'); row.append(element('time','',clock(segment.start)),element('span','caption-kind',segment.caption_type||''),element('p','',segment.text)); $('transcript').append(row); } }
 }
 $('plain-view').onclick=()=>{view='plain';renderTranscript();}; $('timed-view').onclick=()=>{view='timed';renderTranscript();};
 $('edit-text').onclick=()=>{if(!current)return;$('edit-content').value=current.text;$('edit-message').textContent='';$('edit-dialog').showModal();};

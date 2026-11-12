@@ -64,10 +64,11 @@ def to_srt(segments):
 def to_csv(segments, title='', url=''):
     output = io.StringIO(newline='')
     writer = csv.writer(output)
-    writer.writerow(['视频标题', '视频链接', '序号', '开始时间', '结束时间', '逐字内容'])
+    writer.writerow(['视频标题', '视频链接', '序号', '开始时间', '结束时间', '字幕类型', '逐字内容'])
     for i, segment in enumerate(segments, 1):
         writer.writerow([title, url, i, timestamp(segment['start']).replace(',', '.'),
-                         timestamp(segment['end']).replace(',', '.'), segment['text']])
+                         timestamp(segment['end']).replace(',', '.'),
+                         segment.get('caption_type', ''), segment['text']])
     return output.getvalue()
 
 

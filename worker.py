@@ -86,7 +86,8 @@ def process(config):
                         captions = []
                         emit('status', message='画面字幕识别不兼容，正在改用语音识别')
                     if captions:
-                        emit('result', segments=captions, source='画面字幕 OCR', language='zh')
+                        emit('result', segments=captions,
+                             source='画面字幕 OCR · 已区分底部字幕/画面花字', language='zh')
                         return
                     if config['mode'] == 'captions':
                         raise RuntimeError('没有读取到平台字幕或足够的画面字幕。请选择“自动”或“语音识别”重新提交。')

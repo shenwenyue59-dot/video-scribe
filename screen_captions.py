@@ -21,8 +21,8 @@ def _same_caption(left, right):
 
 
 def select_caption_lines(items, frame_width, frame_height, crop_top=0):
-    """Keep large, central Chinese text while dropping logos and small UI labels."""
-    selected = []
+    """Keep visible Chinese captions and label bottom subtitles vs decorative text."""
+    selected = {'flower': [], 'bottom': []}
     for box, text, score in items or []:
         text = _clean(text)
         chinese_count = len(CHINESE.findall(text))
@@ -40,12 +40,22 @@ def select_caption_lines(items, frame_width, frame_height, crop_top=0):
             continue
         if width < frame_width * 0.10 and chinese_count < 4:
             continue
-        selected.append((min(ys), min(xs), text, float(score)))
-    selected.sort()
-    if not selected:
+        # Dialogue subtitles normally form a modest line in the lower part of
+        # the frame. Larger or higher text is treated as decorative on-screen
+        # copy (花字). The label is kept in exports and copied plain text too.
+        kind = 'bottom' if center_y >= frame_height * 0.62 and height <= frame_height * 0.09 else 'flower'
+        selected[kind].append((min(ys), min(xs), text, float(score)))
+    for group in selected.values():
+        group.sort()
+    if not any(selected.values()):
         return '', 0.0
-    text = ''.join(item[2] for item in selected)
-    return text, sum(item[3] for item in selected) / len(selected)
+    parts = []
+    if selected['flower']:
+        parts.append('【画面花字】' + ''.join(item[2] for item in selected['flower']))
+    if selected['bottom']:
+        parts.append('【底部字幕】' + ''.join(item[2] for item in selected['bottom']))
+    all_items = selected['flower'] + selected['bottom']
+    return '｜'.join(parts), sum(item[3] for item in all_items) / len(all_items)
 
 
 def merge_observations(observations, sample_interval):
@@ -79,7 +89,13 @@ def merge_observations(observations, sample_interval):
         # A single two-character observation is commonly a logo or transient UI label.
         if len(CHINESE.findall(text)) <= 2 and item['samples'] == 1:
             continue
-        result.append({'start': round(item['start'], 3), 'end': round(item['end'], 3), 'text': text})
+        kinds = []
+        if '【画面花字】' in text:
+            kinds.append('画面花字')
+        if '【底部字幕】' in text:
+            kinds.append('底部字幕')
+        result.append({'start': round(item['start'], 3), 'end': round(item['end'], 3),
+                       'caption_type': ' + '.join(kinds), 'text': text})
     return result
 
 

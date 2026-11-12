@@ -20,7 +20,10 @@ class TranscriptTests(unittest.TestCase):
         large_caption = ([[60, 420], [510, 420], [510, 490], [60, 490]], '继续整强度！！', 0.98)
         small_ui = ([[10, 20], [90, 20], [90, 35], [10, 35]], '紫外线', 0.99)
         text, _ = select_caption_lines([small_ui, large_caption], 576, 1024)
-        self.assertEqual(text, '继续整强度！！')
+        self.assertEqual(text, '【画面花字】继续整强度！！')
+        bottom_caption = ([[90, 760], [490, 760], [490, 815], [90, 815]], '这是底部对白字幕', 0.97)
+        text, _ = select_caption_lines([large_caption, bottom_caption], 576, 1024)
+        self.assertEqual(text, '【画面花字】继续整强度！！｜【底部字幕】这是底部对白字幕')
         merged = merge_observations([
             (1.0, '没有擦任何东西啊', 0.91),
             (1.75, '没有擦任何东西啊', 0.97),
@@ -117,8 +120,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(txt.content.decode('utf-8-sig'), '后台')
         self.assertIn('00:00:01,500', self.client.get(f'/api/jobs/{ids[1]}/export/srt').text)
         csv_text = self.client.get(f'/api/jobs/{ids[1]}/export/csv').content.decode('utf-8-sig')
-        self.assertIn('视频标题,视频链接,序号,开始时间,结束时间,逐字内容', csv_text)
-        self.assertIn('测试字幕,https://youtu.be/abc,1,00:00:00.000,00:00:01.500,后台', csv_text)
+        self.assertIn('视频标题,视频链接,序号,开始时间,结束时间,字幕类型,逐字内容', csv_text)
+        self.assertIn('测试字幕,https://youtu.be/abc,1,00:00:00.000,00:00:01.500,,后台', csv_text)
         archive = zipfile.ZipFile(io.BytesIO(self.client.get('/api/export.zip').content))
         self.assertEqual(len(archive.namelist()), 3)
         selected = self.client.get(f'/api/export.zip?ids={ids[1]}')
