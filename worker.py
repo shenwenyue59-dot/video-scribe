@@ -77,7 +77,14 @@ def process(config):
                     emit('status', message='平台没有可用字幕，正在识别画面中文字幕')
                     def ocr_progress(current, total):
                         emit('status', message=f'正在识别画面字幕 · {int(current)} / {int(total)} 秒')
-                    captions = extract_screen_captions(media, ocr_progress)
+                    try:
+                        captions = extract_screen_captions(media, ocr_progress)
+                    except Exception:
+                        # OCR engines can reject an unusual decoded frame or
+                        # codec shape. Screen captions are an optional source;
+                        # keep the job alive and use speech recognition below.
+                        captions = []
+                        emit('status', message='画面字幕识别不兼容，正在改用语音识别')
                     if captions:
                         emit('result', segments=captions, source='画面字幕 OCR', language='zh')
                         return
