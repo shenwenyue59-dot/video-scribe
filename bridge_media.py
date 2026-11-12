@@ -104,10 +104,29 @@ def browser_media(url):
     if not platform:
         raise RuntimeError('BRIDGE_MEDIA_INVALID: 当前链接不支持浏览器读取。')
     tabs = command('list_tabs', {}).get('tabs') or []
-    command('navigate', {'url': url, 'newTab': not bool(tabs), 'group_title': '逐字稿自动取视频'})
+    # Reusing a Douyin tab performs an in-page SPA navigation. In that mode the
+    # player often exposes only a blob: URL and hides its media requests, even
+    # though a fresh page load exposes the real douyinvod URL. Close only the
+    # tabs owned by this bridge session, then load the requested post cleanly.
+    for _ in tabs:
+        command('close_tab', {})
+    command('navigate', {'url': url, 'newTab': True, 'group_title': '逐字稿自动取视频'})
     script = """(() => {
       const v=document.querySelector('video');
       let src=v?.currentSrc||v?.src||'';
+      // Douyin sometimes creates the player before assigning currentSrc.  The
+      // actual media request is already visible to the page in that interval,
+      // so keep it as a second source instead of reporting a false failure.
+      if(!src||src.startsWith('blob:')) {
+        const mediaRequests=performance.getEntriesByType('resource').map(x=>x.name).filter(value=>{
+          try {
+            const host=new URL(value).hostname.toLowerCase();
+            return (host.endsWith('douyinvod.com')||host.endsWith('bytecdn.cn')) &&
+              (/mime_type=video_mp4/i.test(value)||/media-video/i.test(value)||/\\.mp4(?:\\?|$)/i.test(value));
+          } catch(e) { return false; }
+        });
+        if(mediaRequests.length) src=mediaRequests[mediaRequests.length-1];
+      }
       let structured={};
       for(const node of document.querySelectorAll('script[type="application/ld+json"]')) {
         try {
@@ -145,7 +164,10 @@ def browser_media(url):
       return JSON.stringify({src,title:note.title||structured.name||document.title||d||'',postText:note.desc||structured.description||d||'',imageUrls:imageUrls.slice(0,30),duration:Number.isFinite(v?.duration)?v.duration:null,pageUrl:location.href});
     })()"""
     last = {}
-    for attempt in range(24):
+    # Some Douyin pages delay the player request while chapters/comments load.
+    # Give the browser enough time to expose either currentSrc or its media
+    # network request, especially on the first visit after Edge starts.
+    for attempt in range(48):
         result = command('evaluate', {'code': script})
         try:
             last = json.loads(result.get('value') or '{}')
