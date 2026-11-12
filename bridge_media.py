@@ -114,6 +114,7 @@ def browser_media(url):
     script = """(() => {
       const v=document.querySelector('video');
       let src=v?.currentSrc||v?.src||'';
+      if(/media-audio/i.test(src)) src='';
       // Douyin sometimes creates the player before assigning currentSrc.  The
       // actual media request is already visible to the page in that interval,
       // so keep it as a second source instead of reporting a false failure.
@@ -122,7 +123,8 @@ def browser_media(url):
           try {
             const host=new URL(value).hostname.toLowerCase();
             return (host.endsWith('douyinvod.com')||host.endsWith('bytecdn.cn')) &&
-              (/mime_type=video_mp4/i.test(value)||/media-video/i.test(value)||/\\.mp4(?:\\?|$)/i.test(value));
+              !/media-audio/i.test(value) &&
+              (/media-video/i.test(value)||/\\.mp4(?:\\?|$)/i.test(value));
           } catch(e) { return false; }
         });
         if(mediaRequests.length) src=mediaRequests[mediaRequests.length-1];
